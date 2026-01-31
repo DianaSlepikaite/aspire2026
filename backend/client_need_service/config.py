@@ -57,18 +57,30 @@ class Settings(BaseSettings):
         description="Default voice for text-to-speech"
     )
 
-    # Supabase Configuration
-    SUPABASE_URL: str = Field(
+    # Database Configuration
+    DATABASE_URL: str = Field(
         default="",
-        description="Supabase project URL"
+        description="PostgreSQL connection URL (postgresql://user:pass@host:port/dbname)"
     )
-    SUPABASE_KEY: str = Field(
-        default="",
-        description="Supabase anon/public key"
+    DB_HOST: str = Field(
+        default="localhost",
+        description="Database host"
     )
-    SUPABASE_SERVICE_KEY: str = Field(
+    DB_PORT: int = Field(
+        default=5432,
+        description="Database port"
+    )
+    DB_NAME: str = Field(
+        default="client_needs_db",
+        description="Database name"
+    )
+    DB_USER: str = Field(
+        default="postgres",
+        description="Database user"
+    )
+    DB_PASSWORD: str = Field(
         default="",
-        description="Supabase service role key for admin operations"
+        description="Database password"
     )
 
     # Application Configuration
@@ -176,9 +188,18 @@ class Settings(BaseSettings):
         """Check if Azure Speech credentials are configured."""
         return bool(self.AZURE_SPEECH_KEY and self.AZURE_SPEECH_REGION)
 
-    def has_supabase_credentials(self) -> bool:
-        """Check if Supabase credentials are configured."""
-        return bool(self.SUPABASE_URL and self.SUPABASE_KEY)
+    def has_database_credentials(self) -> bool:
+        """Check if database credentials are configured."""
+        return bool(self.DATABASE_URL or (self.DB_HOST and self.DB_NAME))
+
+    def get_database_url(self) -> str:
+        """Get database connection URL."""
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+
+        # Build URL from individual components
+        password_part = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
+        return f"postgresql://{self.DB_USER}{password_part}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 # Global settings instance

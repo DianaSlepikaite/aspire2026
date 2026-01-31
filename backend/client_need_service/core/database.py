@@ -1,50 +1,53 @@
 """
-Database connection and management for Supabase.
+Database connection and management for PostgreSQL.
 """
 
 from typing import Optional
-from supabase import create_client, Client
+import asyncpg
 
 from client_need_service.config import get_settings
 from client_need_service.core.exceptions import ConfigurationError, StorageError
 
 
-_supabase_client: Optional[Client] = None
+_db_pool: Optional[asyncpg.Pool] = None
 
 
-async def get_supabase_client() -> Client:
+async def get_db_pool() -> asyncpg.Pool:
     """
-    Get or create Supabase client instance.
+    Get or create PostgreSQL connection pool.
 
     Returns:
-        Supabase client instance
+        asyncpg connection pool
 
     Raises:
-        ConfigurationError: If Supabase credentials are not configured
+        ConfigurationError: If database credentials are not configured
+        StorageError: If connection fails
     """
-    global _supabase_client
+    global _db_pool
 
-    if _supabase_client is None:
+    if _db_pool is None:
         settings = get_settings()
 
-        if not settings.has_supabase_credentials():
+        if not settings.has_database_credentials():
             raise ConfigurationError(
-                "Supabase credentials not configured. "
-                "Please set SUPABASE_URL and SUPABASE_KEY environment variables."
+                "Database credentials not configured. "
+                "Please set DATABASE_URL or individual DB settings in environment variables."
             )
 
         try:
-            _supabase_client = create_client(
-                settings.SUPABASE_URL,
-                settings.SUPABASE_KEY
+            _db_pool = await asyncpg.create_pool(
+                settings.get_database_url(),
+                min_size=2,
+                max_size=10,
+                command_timeout=60
             )
         except Exception as e:
             raise StorageError(
-                f"Failed to connect to Supabase: {str(e)}",
+                f"Failed to connect to PostgreSQL: {str(e)}",
                 details={"error": str(e)}
             )
 
-    return _supabase_client
+    return _db_pool
 
 
 async def initialize_database():
@@ -52,7 +55,11 @@ async def initialize_database():
     Initialize database connection on application startup.
     """
     try:
-        await get_supabase_client()
+        pool = await get_db_pool()
+        # Test connection
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        print("Database connection established successfully")
     except Exception as e:
         # Log error but don't fail startup - allow graceful degradation
         print(f"Warning: Database initialization failed: {e}")
@@ -62,6 +69,7 @@ async def close_database():
     """
     Close database connection on application shutdown.
     """
-    global _supabase_client
-    # Supabase client doesn't need explicit closing
-    _supabase_client = None
+    global _db_pool
+    if _db_pool:
+        await _db_pool.close()
+        _db_pool = None

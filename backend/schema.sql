@@ -1,5 +1,5 @@
 -- Database schema for Client Need Service Agent
--- Run this script in your Supabase SQL Editor
+-- Run this script in your PostgreSQL database
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
