@@ -1,0 +1,392 @@
+"""
+Pydantic models and schemas for the Client Need Service Agent.
+Defines data structures for API requests, responses, and database models.
+"""
+
+from datetime import datetime, date
+from decimal import Decimal
+from typing import Optional, List, Dict, Any
+from enum import Enum
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+# Enums
+
+class ConversationStatus(str, Enum):
+    """Status of a conversation."""
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
+
+
+class UrgencyLevel(str, Enum):
+    """Urgency level for client needs."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class SkillLevel(str, Enum):
+    """Required skill level."""
+    JUNIOR = "junior"
+    MID = "mid"
+    SENIOR = "senior"
+    EXPERT = "expert"
+
+
+class MessageRole(str, Enum):
+    """Role of a message in conversation."""
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+
+
+class MessageType(str, Enum):
+    """Type of message."""
+    TEXT = "text"
+    SPEECH = "speech"
+    SYSTEM = "system"
+
+
+class BudgetType(str, Enum):
+    """Budget type."""
+    HOURLY = "hourly"
+    FIXED = "fixed"
+    MONTHLY = "monthly"
+
+
+class TimelineFlexibility(str, Enum):
+    """Timeline flexibility."""
+    FLEXIBLE = "flexible"
+    SOMEWHAT_FLEXIBLE = "somewhat_flexible"
+    STRICT = "strict"
+
+
+class WorkLocation(str, Enum):
+    """Work location type."""
+    REMOTE = "remote"
+    ONSITE = "onsite"
+    HYBRID = "hybrid"
+
+
+# Conversation API Schemas
+
+class ConversationStartRequest(BaseModel):
+    """Request to start a new conversation."""
+    client_name: Optional[str] = Field(None, max_length=255)
+    client_email: Optional[EmailStr] = None
+    client_phone: Optional[str] = Field(None, max_length=50)
+    source_channel: str = Field(default="web", max_length=50)
+    initial_context: Optional[Dict[str, Any]] = Field(default=None)
+
+
+class ConversationStartResponse(BaseModel):
+    """Response when starting a conversation."""
+    conversation_id: UUID
+    client_need_id: UUID
+    greeting_message: str
+    audio_url: Optional[str] = None
+
+
+class MessageRequest(BaseModel):
+    """Request to send a message in conversation."""
+    message: str = Field(..., min_length=1, max_length=5000)
+    message_type: MessageType = MessageType.TEXT
+
+
+class ExtractionUpdate(BaseModel):
+    """Updates to extracted information from a message."""
+    field_name: str
+    field_value: Any
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class MessageResponse(BaseModel):
+    """Response after sending a message."""
+    conversation_id: UUID
+    message_id: UUID
+    assistant_message: str
+    audio_url: Optional[str] = None
+    extraction_updates: Optional[List[ExtractionUpdate]] = None
+    profile_completeness: int = Field(ge=0, le=100)
+    missing_fields: List[str]
+    can_complete: bool
+
+
+class ConversationStatusResponse(BaseModel):
+    """Response for conversation status query."""
+    conversation_id: UUID
+    status: ConversationStatus
+    total_messages: int
+    profile_completeness: int
+    missing_fields: List[str]
+    duration_minutes: int
+    can_complete: bool
+    conversation_started_at: datetime
+    last_message_at: Optional[datetime] = None
+
+
+class ConversationCompleteResponse(BaseModel):
+    """Response when completing a conversation."""
+    conversation_id: UUID
+    client_need_id: UUID
+    status: ConversationStatus
+    profile_completeness: int
+    summary: str
+
+
+# Speech API Schemas
+
+class TranscriptionRequest(BaseModel):
+    """Request for speech transcription (form data handled separately)."""
+    language: Optional[str] = Field(default="en-US")
+
+
+class TranscriptionResponse(BaseModel):
+    """Response from speech transcription."""
+    transcription: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    duration_seconds: float
+
+
+class SynthesisRequest(BaseModel):
+    """Request for text-to-speech synthesis."""
+    text: str = Field(..., min_length=1, max_length=5000)
+    voice_name: Optional[str] = Field(default="en-US-JennyNeural")
+
+
+class Voice(BaseModel):
+    """Available voice for TTS."""
+    name: str
+    language: str
+    gender: str
+    locale: str
+
+
+class VoicesResponse(BaseModel):
+    """Response with available voices."""
+    voices: List[Voice]
+
+
+# Client Need Database Schemas
+
+class WorkLocationDetails(BaseModel):
+    """Details about work location."""
+    city: Optional[str] = None
+    country: Optional[str] = None
+    timezone: Optional[str] = None
+    address: Optional[str] = None
+
+
+class ClientNeedBase(BaseModel):
+    """Base model for client need with common fields."""
+    # Client Information
+    client_name: Optional[str] = Field(None, max_length=255)
+    client_email: Optional[EmailStr] = None
+    client_phone: Optional[str] = Field(None, max_length=50)
+    client_company: Optional[str] = Field(None, max_length=255)
+
+    # Project Details
+    project_title: Optional[str] = Field(None, max_length=500)
+    project_description: Optional[str] = None
+    project_type: Optional[str] = Field(None, max_length=100)
+    industry: Optional[str] = Field(None, max_length=100)
+
+    # Skills
+    required_skills: Optional[List[str]] = None
+    preferred_skills: Optional[List[str]] = None
+    skill_level: Optional[SkillLevel] = None
+    certifications_required: Optional[List[str]] = None
+
+    # Budget
+    budget_min: Optional[Decimal] = Field(None, ge=0)
+    budget_max: Optional[Decimal] = Field(None, ge=0)
+    budget_currency: str = Field(default="USD", max_length=10)
+    budget_type: Optional[BudgetType] = None
+
+    # Timeline
+    timeline_start_date: Optional[date] = None
+    timeline_end_date: Optional[date] = None
+    timeline_duration_weeks: Optional[int] = Field(None, ge=1)
+    timeline_flexibility: Optional[TimelineFlexibility] = None
+
+    # Urgency
+    urgency_level: Optional[UrgencyLevel] = None
+    priority_score: Optional[int] = Field(None, ge=1, le=10)
+    start_date_importance: Optional[str] = Field(None, max_length=50)
+
+    # Work Arrangement
+    work_location: Optional[WorkLocation] = None
+    work_location_details: Optional[WorkLocationDetails] = None
+    work_hours_requirement: Optional[str] = Field(None, max_length=100)
+
+    # Additional Requirements
+    team_size_needed: Optional[int] = Field(None, ge=1)
+    collaboration_tools: Optional[List[str]] = None
+    communication_preferences: Optional[List[str]] = None
+
+    # AI Insights
+    needs_summary: Optional[str] = None
+    key_challenges: Optional[List[str]] = None
+    success_criteria: Optional[List[str]] = None
+    risk_factors: Optional[List[str]] = None
+
+    # Metadata
+    tags: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+    @field_validator("budget_min", "budget_max")
+    @classmethod
+    def validate_budget(cls, v):
+        """Validate budget values."""
+        if v is not None and v < 0:
+            raise ValueError("Budget must be non-negative")
+        return v
+
+
+class ClientNeedCreate(ClientNeedBase):
+    """Schema for creating a client need."""
+    conversation_id: UUID
+
+
+class ClientNeedUpdate(ClientNeedBase):
+    """Schema for updating a client need (all fields optional)."""
+    pass
+
+
+class ClientNeed(ClientNeedBase):
+    """Complete client need model with database fields."""
+    id: UUID
+    conversation_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    # Conversation Status
+    conversation_status: ConversationStatus
+    total_messages: int = 0
+    conversation_started_at: datetime
+    conversation_completed_at: Optional[datetime] = None
+
+    # Profile Metrics
+    extraction_confidence: Optional[Decimal] = Field(None, ge=0, le=1)
+    profile_completeness_score: int = Field(default=0, ge=0, le=100)
+    missing_information: Optional[List[str]] = None
+
+    # Raw Data
+    conversation_transcript: Optional[List[Dict[str, Any]]] = None
+    raw_audio_references: Optional[List[str]] = None
+
+    # Additional Metadata
+    source_channel: str = "web"
+    language: str = "en"
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "conversation_id": "660e8400-e29b-41d4-a716-446655440000",
+                "client_name": "John Doe",
+                "client_email": "john@example.com",
+                "project_title": "E-commerce Platform Development",
+                "required_skills": ["Python", "React", "PostgreSQL"],
+                "budget_min": 5000,
+                "budget_max": 10000,
+                "urgency_level": "high",
+                "profile_completeness_score": 85
+            }
+        }
+    }
+
+
+class ClientNeedList(BaseModel):
+    """Response model for listing client needs."""
+    items: List[ClientNeed]
+    total: int
+    limit: int
+    offset: int
+
+
+# Conversation Message Schemas
+
+class ConversationMessageBase(BaseModel):
+    """Base model for conversation messages."""
+    role: MessageRole
+    content: str
+    message_type: MessageType = MessageType.TEXT
+    audio_url: Optional[str] = None
+    transcription_confidence: Optional[Decimal] = Field(None, ge=0, le=1)
+
+
+class ConversationMessageCreate(ConversationMessageBase):
+    """Schema for creating a conversation message."""
+    conversation_id: UUID
+
+
+class ConversationMessage(ConversationMessageBase):
+    """Complete conversation message model."""
+    id: UUID
+    conversation_id: UUID
+    created_at: datetime
+    tokens_used: Optional[int] = None
+    model_version: Optional[str] = None
+    processing_time_ms: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ConversationHistory(BaseModel):
+    """Response model for conversation history."""
+    conversation_id: UUID
+    messages: List[ConversationMessage]
+    total_messages: int
+
+
+# Extraction History Schemas
+
+class ExtractionHistoryCreate(BaseModel):
+    """Schema for creating extraction history entry."""
+    conversation_id: UUID
+    extracted_field: str
+    extracted_value: Any
+    confidence_score: Optional[Decimal] = Field(None, ge=0, le=1)
+    extraction_method: Optional[str] = Field(None, max_length=50)
+
+
+class ExtractionHistory(BaseModel):
+    """Complete extraction history model."""
+    id: UUID
+    conversation_id: UUID
+    created_at: datetime
+    extracted_field: str
+    extracted_value: Any
+    confidence_score: Optional[Decimal] = None
+    extraction_method: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+# Health Check Schemas
+
+class HealthCheck(BaseModel):
+    """Basic health check response."""
+    status: str = "healthy"
+    timestamp: datetime
+
+
+class ServiceStatus(BaseModel):
+    """Status of individual service."""
+    name: str
+    status: str
+    message: Optional[str] = None
+
+
+class DetailedHealthCheck(BaseModel):
+    """Detailed health check with service statuses."""
+    status: str
+    timestamp: datetime
+    services: List[ServiceStatus]
+    version: str = "1.0.0"
