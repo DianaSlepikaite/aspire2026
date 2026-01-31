@@ -1,3 +1,7 @@
+# Shared dependencies for all backend services:
+#   - client_need_service
+#   - employee_conversation_service
+
 # Web Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0

@@ -5,8 +5,8 @@ Database connection and management for Supabase.
 from typing import Optional
 from supabase import create_client, Client
 
-from client_need_service.config import get_settings
-from client_need_service.core.exceptions import ConfigurationError, StorageError
+from employee_conversation_service.config import get_settings
+from employee_conversation_service.core.exceptions import ConfigurationError, StorageError
 
 
 _supabase_client: Optional[Client] = None

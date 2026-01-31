@@ -133,7 +133,7 @@ AZURE_SPEECH_REGION=eastus
 
 # Supabase
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_anon_key
+SUPABASE_PUBLISHABLE_KEY=your_anon_key
 ```
 
 7. **Run the application**

@@ -1,5 +1,5 @@
 """
-Configuration management for the Client Need Service Agent.
+Configuration management for the Employee Conversation Service Agent.
 Uses Pydantic Settings for type-safe configuration from environment variables.
 """
 
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
         description="API v1 route prefix"
     )
     CORS_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"],
+        default=["http://localhost:3000", "http://localhost:8001"],
         description="Allowed CORS origins"
     )
 
