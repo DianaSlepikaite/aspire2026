@@ -1,15 +1,14 @@
 """
-Storage service for Supabase database operations.
+Storage service for PostgreSQL database operations.
 """
 
 import logging
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime
+import asyncpg
 
-from supabase import Client
-
-from client_need_service.core.database import get_supabase_client
+from client_need_service.core.database import get_db_pool
 from client_need_service.core.exceptions import (
     StorageError,
     ClientNeedNotFoundError,
@@ -30,17 +29,17 @@ logger = logging.getLogger(__name__)
 
 
 class StorageService:
-    """Service for database operations with Supabase."""
+    """Service for database operations with PostgreSQL."""
 
     def __init__(self):
         """Initialize storage service."""
-        self.client: Optional[Client] = None
+        self.pool: Optional[asyncpg.Pool] = None
 
-    async def _get_client(self) -> Client:
-        """Get Supabase client instance."""
-        if self.client is None:
-            self.client = await get_supabase_client()
-        return self.client
+    async def _get_pool(self) -> asyncpg.Pool:
+        """Get PostgreSQL connection pool."""
+        if self.pool is None:
+            self.pool = await get_db_pool()
+        return self.pool
 
     async def create_client_need(
         self,
@@ -475,9 +474,10 @@ class StorageService:
             True if healthy, False otherwise
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
             # Simple query to test connection
-            client.table("client_needs").select("id").limit(1).execute()
+            async with pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
             return True
         except Exception as e:
             logger.error(f"Database health check failed: {e}")

@@ -1,16 +1,11 @@
+# Minimal requirements for testing the API without external dependencies
+
 # Web Framework
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-multipart>=0.0.6
-
-# Azure Services
-openai>=1.10.0
-azure-cognitiveservices-speech>=1.35.0
-
-# Database
-asyncpg>=0.29.0
 
 # Utilities
 python-dotenv>=1.0.0

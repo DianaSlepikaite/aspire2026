@@ -5,10 +5,15 @@ Azure Speech SDK service for speech-to-text and text-to-speech.
 import logging
 import os
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from io import BytesIO
 
-import azure.cognitiveservices.speech as speechsdk
+try:
+    import azure.cognitiveservices.speech as speechsdk
+    SPEECH_SDK_AVAILABLE = True
+except ImportError:
+    SPEECH_SDK_AVAILABLE = False
+    speechsdk = None
 
 from client_need_service.config import get_settings
 from client_need_service.core.exceptions import (
@@ -31,6 +36,13 @@ class SpeechService:
 
     def _initialize_config(self):
         """Initialize Azure Speech configuration."""
+        if not SPEECH_SDK_AVAILABLE:
+            logger.warning(
+                "Azure Speech SDK not installed. "
+                "Speech service will not be available."
+            )
+            return
+
         if not self.settings.has_azure_speech_credentials():
             logger.warning(
                 "Azure Speech credentials not configured. "

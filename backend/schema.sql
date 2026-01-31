@@ -1,6 +1,5 @@
--- ======================
--- CLIENT AGENT
--- ======================
+-- Database schema for Client Need Service Agent
+-- Run this script in your PostgreSQL database
 
 CREATE SCHEMA IF NOT EXISTS client_agent;
 

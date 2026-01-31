@@ -3,10 +3,19 @@ Azure OpenAI service for conversational AI capabilities.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
-from openai import AsyncAzureOpenAI
+if TYPE_CHECKING:
+    from openai import AsyncAzureOpenAI
+
+try:
+    from openai import AsyncAzureOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    AsyncAzureOpenAI = None
+
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -38,6 +47,13 @@ class AzureOpenAIService:
 
     def _initialize_client(self):
         """Initialize the Azure OpenAI client."""
+        if not OPENAI_AVAILABLE:
+            logger.warning(
+                "OpenAI library not installed. "
+                "Azure OpenAI service will not be available."
+            )
+            return
+
         if not self.settings.has_azure_openai_credentials():
             logger.warning(
                 "Azure OpenAI credentials not configured. "
