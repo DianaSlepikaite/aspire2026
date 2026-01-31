@@ -390,7 +390,9 @@ class EmployeeProfileCreate(EmployeeProfileBase):
 
 class EmployeeProfileUpdate(EmployeeProfileBase):
     """Schema for updating an employee profile (all fields optional)."""
-    pass
+    conversation_status: Optional[ConversationStatus] = None
+    conversation_completed_at: Optional[datetime] = None
+    profile_completeness_score: Optional[int] = Field(None, ge=0, le=100)
 
 
 class EmployeeProfile(EmployeeProfileBase):

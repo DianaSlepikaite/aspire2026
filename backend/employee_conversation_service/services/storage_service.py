@@ -1,15 +1,17 @@
 """
-Storage service for Supabase database operations.
+Storage service for PostgreSQL database operations.
 """
 
 import logging
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
+from enum import Enum
 
-from supabase import Client
+import asyncpg
 
-from employee_conversation_service.core.database import get_supabase_client
+from employee_conversation_service.core.database import get_db_pool
 from employee_conversation_service.core.exceptions import (
     StorageError,
     EmployeeProfileNotFoundError,
@@ -28,19 +30,55 @@ from employee_conversation_service.models.schemas import (
 
 logger = logging.getLogger(__name__)
 
+# Table names
+PROFILES_TABLE = "employee_agent.employee_profiles"
+MESSAGES_TABLE = "employee_agent.employee_conversation_messages"
+EXTRACTIONS_TABLE = "employee_agent.employee_extraction_history"
+
+
+def _jsonb_safe(value):
+    """Make a value safe for JSONB storage (JSON-serializable)."""
+    if value is None:
+        return None
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, dict):
+        return {k: _jsonb_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_jsonb_safe(item) for item in value]
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
+
+
+def _prepare_value(value):
+    """Prepare a single value for database insertion."""
+    if value is None:
+        return None
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, (dict, list)):
+        # Dicts and lists go to JSONB columns - make them JSON-safe
+        return _jsonb_safe(value)
+    return value
+
 
 class StorageService:
-    """Service for database operations with Supabase."""
+    """Service for database operations with PostgreSQL."""
 
     def __init__(self):
         """Initialize storage service."""
-        self.client: Optional[Client] = None
+        self.pool: Optional[asyncpg.Pool] = None
 
-    async def _get_client(self) -> Client:
-        """Get Supabase client instance."""
-        if self.client is None:
-            self.client = await get_supabase_client()
-        return self.client
+    async def _get_pool(self) -> asyncpg.Pool:
+        """Get PostgreSQL connection pool."""
+        if self.pool is None:
+            self.pool = await get_db_pool()
+        return self.pool
 
     async def create_employee_profile(
         self,
@@ -59,31 +97,53 @@ class StorageService:
             StorageError: If creation fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
 
-            # Prepare data for insertion
+            now = datetime.utcnow()
+            profile_id = uuid4()
+
+            # Base fields with native types
             insert_data = {
-                "id": str(uuid4()),
-                "conversation_id": str(data.conversation_id),
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "id": profile_id,
+                "conversation_id": data.conversation_id,
+                "created_at": now,
+                "updated_at": now,
                 "conversation_status": ConversationStatus.IN_PROGRESS.value,
                 "total_messages": 0,
-                "conversation_started_at": datetime.utcnow().isoformat(),
+                "conversation_started_at": now,
                 "profile_completeness_score": 0,
-                **data.model_dump(exclude={"conversation_id"}, exclude_none=True)
             }
 
-            # Insert into database
-            result = client.table("employee_profiles").insert(insert_data).execute()
+            # Add non-None fields from creation data
+            profile_data = data.model_dump(
+                exclude={"conversation_id"},
+                exclude_none=True
+            )
+            for key, value in profile_data.items():
+                insert_data[key] = _prepare_value(value)
 
-            if not result.data:
+            columns = list(insert_data.keys())
+            placeholders = [f"${i+1}" for i in range(len(columns))]
+            values = list(insert_data.values())
+
+            query = f"""
+                INSERT INTO {PROFILES_TABLE} ({', '.join(columns)})
+                VALUES ({', '.join(placeholders)})
+                RETURNING *
+            """
+
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, *values)
+
+            if not row:
                 raise StorageError("Failed to create employee profile")
 
-            logger.info(f"Created employee profile: {result.data[0]['id']}")
+            logger.info(f"Created employee profile: {row['id']}")
 
-            return EmployeeProfile(**result.data[0])
+            return EmployeeProfile(**dict(row))
 
+        except StorageError:
+            raise
         except Exception as e:
             logger.error(f"Failed to create employee profile: {e}")
             raise StorageError(
@@ -111,23 +171,34 @@ class StorageService:
             StorageError: If update fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
 
-            # Prepare update data
             update_data = data.model_dump(exclude_none=True)
-            update_data["updated_at"] = datetime.utcnow().isoformat()
+            update_data["updated_at"] = datetime.utcnow()
 
-            # Update in database
-            result = client.table("employee_profiles").update(update_data).eq(
-                "id", str(id)
-            ).execute()
+            set_clauses = []
+            values = [id]  # $1 is always the id
 
-            if not result.data:
+            for i, (key, value) in enumerate(update_data.items(), start=2):
+                set_clauses.append(f"{key} = ${i}")
+                values.append(_prepare_value(value))
+
+            query = f"""
+                UPDATE {PROFILES_TABLE}
+                SET {', '.join(set_clauses)}
+                WHERE id = $1
+                RETURNING *
+            """
+
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, *values)
+
+            if not row:
                 raise EmployeeProfileNotFoundError(str(id))
 
             logger.info(f"Updated employee profile: {id}")
 
-            return EmployeeProfile(**result.data[0])
+            return EmployeeProfile(**dict(row))
 
         except EmployeeProfileNotFoundError:
             raise
@@ -152,16 +223,17 @@ class StorageService:
             StorageError: If query fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
 
-            result = client.table("employee_profiles").select("*").eq(
-                "id", str(id)
-            ).execute()
+            query = f"SELECT * FROM {PROFILES_TABLE} WHERE id = $1"
 
-            if not result.data:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, id)
+
+            if not row:
                 return None
 
-            return EmployeeProfile(**result.data[0])
+            return EmployeeProfile(**dict(row))
 
         except Exception as e:
             logger.error(f"Failed to get employee profile: {e}")
@@ -187,16 +259,17 @@ class StorageService:
             StorageError: If query fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
 
-            result = client.table("employee_profiles").select("*").eq(
-                "conversation_id", str(conversation_id)
-            ).execute()
+            query = f"SELECT * FROM {PROFILES_TABLE} WHERE conversation_id = $1"
 
-            if not result.data:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, conversation_id)
+
+            if not row:
                 return None
 
-            return EmployeeProfile(**result.data[0])
+            return EmployeeProfile(**dict(row))
 
         except Exception as e:
             logger.error(f"Failed to get employee profile by conversation ID: {e}")
@@ -226,37 +299,52 @@ class StorageService:
             StorageError: If query fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
 
-            # Build query
-            query = client.table("employee_profiles").select("*", count="exact")
+            conditions = []
+            values = []
+            param_idx = 1
 
-            # Apply filters
             if filters:
                 if "status" in filters:
-                    query = query.eq("conversation_status", filters["status"])
+                    conditions.append(f"conversation_status = ${param_idx}")
+                    values.append(filters["status"])
+                    param_idx += 1
                 if "experience_level" in filters:
-                    query = query.eq("experience_level", filters["experience_level"])
+                    conditions.append(f"experience_level = ${param_idx}")
+                    values.append(filters["experience_level"])
+                    param_idx += 1
                 if "min_completeness" in filters:
-                    query = query.gte(
-                        "profile_completeness_score",
-                        filters["min_completeness"]
-                    )
+                    conditions.append(f"profile_completeness_score >= ${param_idx}")
+                    values.append(filters["min_completeness"])
+                    param_idx += 1
                 if "bench_status" in filters:
-                    query = query.eq("bench_status", filters["bench_status"])
+                    conditions.append(f"bench_status = ${param_idx}")
+                    values.append(filters["bench_status"])
+                    param_idx += 1
                 if "career_track" in filters:
-                    query = query.eq("career_track", filters["career_track"])
+                    conditions.append(f"career_track = ${param_idx}")
+                    values.append(filters["career_track"])
+                    param_idx += 1
 
-            # Apply pagination and ordering
-            query = query.order("created_at", desc=True).range(
-                offset, offset + limit - 1
-            )
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
-            result = query.execute()
+            # Count query
+            count_query = f"SELECT COUNT(*) FROM {PROFILES_TABLE} {where_clause}"
 
-            # Parse results
-            profiles = [EmployeeProfile(**item) for item in result.data]
-            total = result.count if result.count is not None else len(profiles)
+            # Data query
+            data_query = f"""
+                SELECT * FROM {PROFILES_TABLE}
+                {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+            """
+
+            async with pool.acquire() as conn:
+                total = await conn.fetchval(count_query, *values)
+                rows = await conn.fetch(data_query, *values, limit, offset)
+
+            profiles = [EmployeeProfile(**dict(row)) for row in rows]
 
             logger.info(f"Listed {len(profiles)} employee profiles (total: {total})")
 
@@ -284,13 +372,14 @@ class StorageService:
             StorageError: If deletion fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
 
-            result = client.table("employee_profiles").delete().eq(
-                "id", str(id)
-            ).execute()
+            query = f"DELETE FROM {PROFILES_TABLE} WHERE id = $1 RETURNING id"
 
-            if not result.data:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, id)
+
+            if not row:
                 raise EmployeeProfileNotFoundError(str(id))
 
             logger.info(f"Deleted employee profile: {id}")
@@ -325,18 +414,38 @@ class StorageService:
             StorageError: If save fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
+
+            now = datetime.utcnow()
+            msg_id = uuid4()
 
             insert_data = {
-                "id": str(uuid4()),
-                "conversation_id": str(message.conversation_id),
-                "created_at": datetime.utcnow().isoformat(),
-                **message.model_dump(exclude={"conversation_id"}, exclude_none=True)
+                "id": msg_id,
+                "conversation_id": message.conversation_id,
+                "created_at": now,
             }
 
-            result = client.table("employee_conversation_messages").insert(insert_data).execute()
+            msg_data = message.model_dump(
+                exclude={"conversation_id"},
+                exclude_none=True
+            )
+            for key, value in msg_data.items():
+                insert_data[key] = _prepare_value(value)
 
-            if not result.data:
+            columns = list(insert_data.keys())
+            placeholders = [f"${i+1}" for i in range(len(columns))]
+            values = list(insert_data.values())
+
+            query = f"""
+                INSERT INTO {MESSAGES_TABLE} ({', '.join(columns)})
+                VALUES ({', '.join(placeholders)})
+                RETURNING *
+            """
+
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, *values)
+
+            if not row:
                 raise StorageError("Failed to save message")
 
             # Increment total_messages count in employee_profiles
@@ -344,8 +453,10 @@ class StorageService:
 
             logger.debug(f"Saved message for conversation: {message.conversation_id}")
 
-            return ConversationMessage(**result.data[0])
+            return ConversationMessage(**dict(row))
 
+        except StorageError:
+            raise
         except Exception as e:
             logger.error(f"Failed to save message: {e}")
             raise StorageError(
@@ -356,19 +467,17 @@ class StorageService:
     async def _increment_message_count(self, conversation_id: UUID):
         """Increment the total_messages count for a conversation."""
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
 
-            # Get current count
-            result = client.table("employee_profiles").select("total_messages").eq(
-                "conversation_id", str(conversation_id)
-            ).execute()
+            query = f"""
+                UPDATE {PROFILES_TABLE}
+                SET total_messages = total_messages + 1,
+                    updated_at = now()
+                WHERE conversation_id = $1
+            """
 
-            if result.data:
-                current_count = result.data[0].get("total_messages", 0)
-                client.table("employee_profiles").update({
-                    "total_messages": current_count + 1,
-                    "updated_at": datetime.utcnow().isoformat()
-                }).eq("conversation_id", str(conversation_id)).execute()
+            async with pool.acquire() as conn:
+                await conn.execute(query, conversation_id)
 
         except Exception as e:
             logger.warning(f"Failed to increment message count: {e}")
@@ -392,26 +501,31 @@ class StorageService:
             StorageError: If query fails
         """
         try:
-            client = await self._get_client()
-
-            query = client.table("employee_conversation_messages").select("*").eq(
-                "conversation_id", str(conversation_id)
-            ).order("created_at", desc=False)
+            pool = await self._get_pool()
 
             if limit:
-                # Get most recent messages within limit
-                total_result = client.table("employee_conversation_messages").select(
-                    "id", count="exact"
-                ).eq("conversation_id", str(conversation_id)).execute()
+                # Get the most recent N messages, ordered ascending
+                query = f"""
+                    SELECT * FROM (
+                        SELECT * FROM {MESSAGES_TABLE}
+                        WHERE conversation_id = $1
+                        ORDER BY created_at DESC
+                        LIMIT $2
+                    ) sub
+                    ORDER BY created_at ASC
+                """
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch(query, conversation_id, limit)
+            else:
+                query = f"""
+                    SELECT * FROM {MESSAGES_TABLE}
+                    WHERE conversation_id = $1
+                    ORDER BY created_at ASC
+                """
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch(query, conversation_id)
 
-                total_count = total_result.count or 0
-                offset = max(0, total_count - limit)
-
-                query = query.range(offset, offset + limit - 1)
-
-            result = query.execute()
-
-            messages = [ConversationMessage(**item) for item in result.data]
+            messages = [ConversationMessage(**dict(row)) for row in rows]
 
             logger.debug(
                 f"Retrieved {len(messages)} messages for conversation: {conversation_id}"
@@ -445,25 +559,44 @@ class StorageService:
             StorageError: If save fails
         """
         try:
-            client = await self._get_client()
+            pool = await self._get_pool()
+
+            now = datetime.utcnow()
+            extraction_id = uuid4()
 
             insert_data = {
-                "id": str(uuid4()),
-                "created_at": datetime.utcnow().isoformat(),
-                **extraction.model_dump(exclude_none=True)
+                "id": extraction_id,
+                "created_at": now,
             }
 
-            result = client.table("employee_extraction_history").insert(insert_data).execute()
+            extraction_data = extraction.model_dump(exclude_none=True)
+            for key, value in extraction_data.items():
+                insert_data[key] = _prepare_value(value)
 
-            if not result.data:
+            columns = list(insert_data.keys())
+            placeholders = [f"${i+1}" for i in range(len(columns))]
+            values = list(insert_data.values())
+
+            query = f"""
+                INSERT INTO {EXTRACTIONS_TABLE} ({', '.join(columns)})
+                VALUES ({', '.join(placeholders)})
+                RETURNING *
+            """
+
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, *values)
+
+            if not row:
                 raise StorageError("Failed to save extraction")
 
             logger.debug(
                 f"Saved extraction for conversation: {extraction.conversation_id}"
             )
 
-            return ExtractionHistory(**result.data[0])
+            return ExtractionHistory(**dict(row))
 
+        except StorageError:
+            raise
         except Exception as e:
             logger.error(f"Failed to save extraction: {e}")
             raise StorageError(
@@ -479,9 +612,9 @@ class StorageService:
             True if healthy, False otherwise
         """
         try:
-            client = await self._get_client()
-            # Simple query to test connection
-            client.table("employee_profiles").select("id").limit(1).execute()
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
             return True
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
