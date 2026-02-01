@@ -1,13 +1,13 @@
 # ASPIRE 2026 - Client Need Service Agent
 
-AI-powered service agent that conducts natural conversations with clients to extract and understand their project needs. Built with FastAPI, Azure OpenAI, Azure Speech Services, and Supabase.
+AI-powered service agent that conducts natural conversations with clients to extract and understand their project needs. Built with FastAPI, Azure OpenAI, Azure Speech Services, and PostgreSQL.
 
 ## Features
 
 - **Conversational AI**: Natural language conversations using Azure OpenAI GPT-4
 - **Information Extraction**: Automatic extraction of project requirements, skills, budget, timeline, and urgency
 - **Speech Integration**: Speech-to-text and text-to-speech capabilities using Azure Speech SDK
-- **Profile Management**: Structured storage of client needs in Supabase PostgreSQL
+- **Profile Management**: Structured storage of client needs in PostgreSQL
 - **Real-time Progress Tracking**: Monitor conversation completeness and missing information
 - **REST API**: Comprehensive API for integration with frontend applications
 
@@ -46,7 +46,7 @@ AI-powered service agent that conducts natural conversations with clients to ext
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                       DATA LAYER                                │
-│  Supabase (PostgreSQL + Vector Search)                          │
+│  PostgreSQL                                                     │
 │  ├─ client_needs                                                │
 │  ├─ conversation_messages                                       │
 │  └─ extraction_history                                          │
@@ -59,11 +59,11 @@ AI-powered service agent that conducts natural conversations with clients to ext
 - **AI Services**:
   - Azure OpenAI (GPT-4 for conversations)
   - Azure Speech SDK (Speech-to-Text & Text-to-Speech)
-- **Database**: Supabase (PostgreSQL)
+- **Database**: PostgreSQL
 - **Key Libraries**:
   - openai (Azure OpenAI client)
   - azure-cognitiveservices-speech
-  - supabase-py
+  - asyncpg (PostgreSQL async driver)
   - pydantic (data validation)
 
 ## Getting Started
@@ -74,7 +74,7 @@ AI-powered service agent that conducts natural conversations with clients to ext
 - Azure subscription with:
   - Azure OpenAI Service access
   - Azure Speech Service
-- Supabase account and project
+- PostgreSQL database (local or hosted)
 
 ### Installation
 
@@ -101,16 +101,16 @@ pip install -r requirements.txt
 4. **Setup Azure Services**
 
 Follow the detailed guide in [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md) to:
+
 - Create Azure OpenAI resource
 - Deploy GPT-4 model
 - Create Azure Speech Service
 - Get API credentials
 
-5. **Setup Supabase**
+5. **Setup PostgreSQL**
 
-- Create a Supabase project at [supabase.com](https://supabase.com)
-- Run the SQL script from `backend/schema.sql` in the Supabase SQL Editor
-- Get your project URL and API keys
+- Create a database (e.g. `client_needs_db`) on your PostgreSQL server
+- Run the SQL script from `backend/client_need_service/db/schema.sql` in that database (e.g. using `psql` or pgAdmin)
 
 6. **Configure environment variables**
 
@@ -131,9 +131,9 @@ AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4
 AZURE_SPEECH_KEY=your_key
 AZURE_SPEECH_REGION=eastus
 
-# Supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_PUBLISHABLE_KEY=your_anon_key
+# PostgreSQL (use DATABASE_URL or individual DB_* vars)
+DATABASE_URL=postgresql://user:password@localhost:5432/client_needs_db
+# Or: DB_HOST=localhost DB_PORT=5432 DB_NAME=client_needs_db DB_USER=postgres DB_PASSWORD=your_password
 ```
 
 7. **Run the application**
@@ -220,7 +220,8 @@ backend/
 ├── tests/                          # Test suite
 ├── requirements.txt
 ├── .env.example
-└── schema.sql                      # Database schema
+└── db/
+    └── schema.sql                 # Database schema (client_needs, etc.)
 ```
 
 ## Development

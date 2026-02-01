@@ -1,7 +1,7 @@
 # Web Framework
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
-pydantic>=2.4.2
+pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-multipart>=0.0.6
 
@@ -22,14 +22,6 @@ pypdf>=3.17.0
 # LangChain for Agent
 langchain>=0.1.0
 langchain-openai>=0.0.5
-email-validator>=2.1.0
-
-# Document parsing
-PyPDF2>=3.0.0
-python-docx>=1.1.0
-
-# Azure Blob Storage
-azure-storage-blob>=12.19.0
 
 # Type checking
 typing-extensions>=4.9.0

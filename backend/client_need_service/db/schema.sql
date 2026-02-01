@@ -1,50 +1,55 @@
 -- Database schema for Client Need Service Agent
--- Run this script in your PostgreSQL database
+-- Run this script in your PostgreSQL database (e.g. client_needs_db)
+--
+-- 1. Create database (e.g. client_needs_db) or use existing.
+-- 2. Set env: DATABASE_URL or DB_HOST, DB_NAME, DB_USER, DB_PASSWORD
+-- 3. Run this entire script in that database.
 
-CREATE SCHEMA IF NOT EXISTS client_agent;
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE client_agent.client_needs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  conversation_id UUID UNIQUE NOT NULL,
+-- Table: client_needs
+CREATE TABLE IF NOT EXISTS client_needs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+    -- Conversation Metadata
+    conversation_id UUID NOT NULL UNIQUE,
+    conversation_status VARCHAR(50) DEFAULT 'in_progress', -- in_progress, completed, abandoned
+    total_messages INTEGER DEFAULT 0,
+    conversation_started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    conversation_completed_at TIMESTAMP WITH TIME ZONE,
 
-  -- Conversation state
-  conversation_status conversation_status DEFAULT 'in_progress',
-  total_messages INTEGER DEFAULT 0,
-  conversation_started_at TIMESTAMPTZ DEFAULT now(),
-  conversation_completed_at TIMESTAMPTZ,
+    -- Client Information
+    client_name VARCHAR(255),
+    client_email VARCHAR(255),
+    client_phone VARCHAR(50),
+    client_company VARCHAR(255),
 
-  -- Client info
-  client_name VARCHAR,
-  client_email VARCHAR,
-  client_phone VARCHAR,
-  client_company VARCHAR,
+    -- Project Details
+    project_title VARCHAR(500),
+    project_description TEXT,
+    project_type VARCHAR(100), -- web_development, mobile_app, data_analytics, etc.
+    industry VARCHAR(100),
 
-  -- Project info
-  project_title VARCHAR,
-  project_description TEXT,
-  project_type VARCHAR,
-  industry VARCHAR,
+    -- Skills and Requirements (JSONB for flexibility)
+    required_skills JSONB,
+    preferred_skills JSONB,
+    skill_level VARCHAR(50), -- junior, mid, senior, expert
+    certifications_required JSONB,
 
-  -- Skills
-  required_skills JSONB,
-  preferred_skills JSONB,
-  skill_level VARCHAR,
-  certifications_required JSONB,
+    -- Budget
+    budget_min DECIMAL(12, 2),
+    budget_max DECIMAL(12, 2),
+    budget_currency VARCHAR(10) DEFAULT 'USD',
+    budget_type VARCHAR(50), -- hourly, fixed, monthly
 
-  -- Budget
-  budget_min NUMERIC,
-  budget_max NUMERIC,
-  budget_currency VARCHAR DEFAULT 'USD',
-  budget_type VARCHAR,
-
-  -- Timeline
-  timeline_start_date DATE,
-  timeline_end_date DATE,
-  timeline_duration_weeks INTEGER,
-  timeline_flexibility VARCHAR,
+    -- Timeline
+    timeline_start_date DATE,
+    timeline_end_date DATE,
+    timeline_duration_weeks INTEGER,
+    timeline_flexibility VARCHAR(50), -- flexible, somewhat_flexible, strict
 
     -- Urgency and Priority
     urgency_level VARCHAR(50), -- low, medium, high, critical
@@ -64,21 +69,20 @@ CREATE TABLE client_agent.client_needs (
     -- Roles & Disciplines
     required_roles JSONB, -- [{"category": "technology_engineering", "evidence": "cloud engineering", "description": "...", "count": 2}, ...]
 
-  -- AI insights
-  needs_summary TEXT,
-  key_challenges JSONB,
-  success_criteria JSONB,
-  risk_factors JSONB,
+    -- AI-Generated Insights
+    needs_summary TEXT,
+    key_challenges JSONB,
+    success_criteria JSONB,
+    risk_factors JSONB,
 
-  -- Extraction quality
-  extraction_confidence NUMERIC,
-  missing_information JSONB,
-  profile_completeness_score INTEGER
-    DEFAULT 0 CHECK (profile_completeness_score BETWEEN 0 AND 100),
+    -- Profile Completeness
+    extraction_confidence DECIMAL(3, 2), -- 0.00 to 1.00
+    missing_information JSONB, -- ["budget", "timeline", ...]
+    profile_completeness_score INTEGER CHECK (profile_completeness_score BETWEEN 0 AND 100) DEFAULT 0,
 
-  -- Raw data
-  conversation_transcript JSONB,
-  raw_audio_references JSONB,
+    -- Raw Conversation Data
+    conversation_transcript JSONB, -- Array of message objects
+    raw_audio_references JSONB, -- References to audio files if stored
 
     -- Metadata
     source_channel VARCHAR(50) DEFAULT 'web', -- web, mobile, api
@@ -113,6 +117,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_client_needs_updated_at ON client_needs;
 CREATE TRIGGER update_client_needs_updated_at
 BEFORE UPDATE ON client_needs
 FOR EACH ROW
@@ -211,6 +216,7 @@ CREATE INDEX IF NOT EXISTS idx_intake_packages_client_email ON intake_packages(c
 CREATE INDEX IF NOT EXISTS idx_intake_packages_client_need_id ON intake_packages(client_need_id);
 
 -- Trigger for updated_at on intake_packages
+DROP TRIGGER IF EXISTS update_intake_packages_updated_at ON intake_packages;
 CREATE TRIGGER update_intake_packages_updated_at
 BEFORE UPDATE ON intake_packages
 FOR EACH ROW

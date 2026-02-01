@@ -266,14 +266,15 @@ class DataIngestionService:
                     audio_content
                 )
 
-                transcript_text = transcription_result.get("text", "")
+                # Get transcription text (key is "transcription" not "text")
+                transcript_text = transcription_result.get("transcription", "")
 
                 audit_trail.append({
                     "step": "transcription",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "action": "transcribed_audio",
                     "confidence": transcription_result.get("confidence"),
-                    "duration": transcription_result.get("duration")
+                    "duration_seconds": transcription_result.get("duration_seconds")
                 })
 
             except Exception as e:

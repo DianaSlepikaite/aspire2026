@@ -3,8 +3,8 @@
 echo "🚀 Installing full dependencies..."
 source venv/bin/activate
 
-# Install Azure and Supabase packages
-pip install openai azure-cognitiveservices-speech supabase email-validator
+# Install Azure and app packages
+pip install openai azure-cognitiveservices-speech email-validator
 
 echo ""
 echo "✅ Dependencies installed!"
