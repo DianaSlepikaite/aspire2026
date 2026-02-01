@@ -1,20 +1,26 @@
 """
-Service for extracting and analyzing client needs from conversations.
+Service for extracting and analyzing client needs from conversations and documents.
 """
 
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from uuid import UUID
+from decimal import Decimal
 
-from client_need_service.core.exceptions import ConversationError
+from client_need_service.core.exceptions import ConversationError, ServiceError
 from client_need_service.models.schemas import ClientNeedUpdate
+from client_need_service.services.azure_openai_service import AzureOpenAIService
 
 logger = logging.getLogger(__name__)
 
 
 class NeedExtractionService:
-    """Service for extracting structured information from conversations."""
+    """Service for extracting structured information from conversations and documents."""
+
+    def __init__(self):
+        """Initialize need extraction service."""
+        self.azure_openai_service = AzureOpenAIService()
 
     # Required fields for a complete profile
     REQUIRED_FIELDS = [
@@ -359,3 +365,203 @@ class NeedExtractionService:
             return f"We're still missing information about {hints[0]} and {hints[1]}."
         else:
             return f"We're still missing information about {', '.join(hints[:-1])}, and {hints[-1]}."
+
+    async def extract_needs_from_text(
+        self,
+        text: str,
+        client_name: Optional[str] = None,
+        client_email: Optional[str] = None
+    ) -> Tuple[ClientNeedUpdate, Dict[str, Any]]:
+        """
+        Extract structured client needs from raw text using AI.
+
+        This is the main extraction method for standalone document/text processing.
+
+        Args:
+            text: Raw text content to extract from
+            client_name: Optional client name
+            client_email: Optional client email
+
+        Returns:
+            Tuple of (ClientNeedUpdate with extracted data, metadata with confidence scores)
+
+        Raises:
+            ServiceError: If extraction fails
+        """
+        try:
+            logger.info(f"Extracting needs from text ({len(text)} chars)")
+
+            # Create extraction prompt
+            extraction_prompt = self._build_extraction_prompt(text)
+
+            # Call Azure OpenAI for structured extraction
+            messages = [
+                {"role": "system", "content": self._get_extraction_system_prompt()},
+                {"role": "user", "content": extraction_prompt}
+            ]
+
+            response_dict = await self.azure_openai_service.generate_response(
+                messages,
+                use_functions=False
+            )
+            response = response_dict.get("content", "")
+
+            # Parse the response
+            extracted_data = self._parse_extraction_response(response)
+
+            # Add client info if provided
+            if client_name:
+                extracted_data["client_name"] = client_name
+            if client_email:
+                extracted_data["client_email"] = client_email
+
+            # Calculate confidence and completeness
+            completeness_score = self.calculate_completeness_score(extracted_data)
+            missing_fields = self.identify_missing_fields(extracted_data)
+
+            metadata = {
+                "completeness_score": completeness_score,
+                "missing_fields": missing_fields,
+                "extraction_method": "ai_text_extraction",
+                "confidence": Decimal("0.85")  # Can be enhanced with actual confidence scoring
+            }
+
+            logger.info(f"Extracted needs with {completeness_score}% completeness")
+
+            return ClientNeedUpdate(**extracted_data), metadata
+
+        except Exception as e:
+            logger.error(f"Failed to extract needs from text: {e}")
+            raise ServiceError(
+                f"Need extraction failed: {str(e)}",
+                details={"error": str(e)}
+            )
+
+    def _get_extraction_system_prompt(self) -> str:
+        """Get the system prompt for need extraction."""
+        return """You are an expert at extracting client project requirements from text.
+
+Your task is to analyze the provided text and extract structured information about:
+- Project details (title, description, type, industry)
+- Required skills and experience level
+- Budget information (min, max, currency, type)
+- Timeline (duration, start date, flexibility)
+- Urgency and priority
+- Work arrangement (location, hours)
+- Additional requirements
+
+Return your analysis as a JSON object with the following structure:
+{
+  "project_title": "string or null",
+  "project_description": "string or null",
+  "project_type": "string or null",
+  "industry": "string or null",
+  "required_skills": ["skill1", "skill2"] or null,
+  "preferred_skills": ["skill1", "skill2"] or null,
+  "skill_level": "junior|mid|senior|expert or null",
+  "budget_min": number or null,
+  "budget_max": number or null,
+  "budget_currency": "string or null",
+  "budget_type": "hourly|fixed|monthly or null",
+  "timeline_duration_weeks": number or null,
+  "timeline_start_date": "YYYY-MM-DD or null",
+  "timeline_flexibility": "flexible|somewhat_flexible|strict or null",
+  "urgency_level": "low|medium|high|critical or null",
+  "priority_score": number (1-10) or null,
+  "work_location": "remote|onsite|hybrid or null",
+  "team_size_needed": number or null,
+  "collaboration_tools": ["tool1", "tool2"] or null
+}
+
+Only include fields where you can confidently extract information. Use null for missing data.
+Be precise with numbers and dates. Infer reasonable values when context is clear."""
+
+    def _build_extraction_prompt(self, text: str) -> str:
+        """Build the extraction prompt from text."""
+        return f"""Analyze the following client communication and extract all relevant project requirements:
+
+---
+{text}
+---
+
+Extract and structure all available information about the project requirements.
+Return only the JSON object, no additional text."""
+
+    def _parse_extraction_response(self, response: str) -> Dict[str, Any]:
+        """Parse the AI extraction response into structured data."""
+        try:
+            # Try to parse as JSON
+            # The response might have markdown code blocks, so clean it
+            cleaned_response = response.strip()
+
+            # Remove markdown code blocks if present
+            if cleaned_response.startswith("```"):
+                lines = cleaned_response.split("\n")
+                cleaned_response = "\n".join(lines[1:-1])  # Remove first and last lines
+
+            if cleaned_response.startswith("```json"):
+                cleaned_response = cleaned_response[7:]  # Remove ```json
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]  # Remove ```
+
+            cleaned_response = cleaned_response.strip()
+
+            extracted = json.loads(cleaned_response)
+
+            # Normalize enum values before validation
+            extracted = self._normalize_enum_values(extracted)
+
+            # Filter out null values
+            return {k: v for k, v in extracted.items() if v is not None}
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse extraction response as JSON: {e}")
+            logger.debug(f"Response was: {response}")
+            # Return empty dict if parsing fails
+            return {}
+
+    def _normalize_enum_values(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize AI-generated enum values to match schema enums."""
+        # Skill level normalization
+        skill_level_mapping = {
+            "experienced": "senior",
+            "intermediate": "mid",
+            "beginner": "junior",
+            "advanced": "expert",
+            "entry": "junior",
+            "entry-level": "junior",
+            "mid-level": "mid",
+            "senior-level": "senior",
+        }
+
+        if "skill_level" in data and isinstance(data["skill_level"], str):
+            normalized = skill_level_mapping.get(data["skill_level"].lower())
+            if normalized:
+                data["skill_level"] = normalized
+
+        # Timeline flexibility normalization
+        flexibility_mapping = {
+            "very flexible": "flexible",
+            "not flexible": "strict",
+            "somewhat flexible": "somewhat_flexible",
+        }
+
+        if "timeline_flexibility" in data and isinstance(data["timeline_flexibility"], str):
+            normalized = flexibility_mapping.get(data["timeline_flexibility"].lower())
+            if normalized:
+                data["timeline_flexibility"] = normalized
+
+        # Work location normalization
+        location_mapping = {
+            "fully remote": "remote",
+            "fully onsite": "onsite",
+            "on-site": "onsite",
+            "mixed": "hybrid",
+        }
+
+        if "work_location" in data and isinstance(data["work_location"], str):
+            normalized = location_mapping.get(data["work_location"].lower())
+            if normalized:
+                data["work_location"] = normalized
+
+        return data

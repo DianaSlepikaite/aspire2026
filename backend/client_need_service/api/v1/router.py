@@ -8,7 +8,9 @@ from client_need_service.api.v1.endpoints import (
     health,
     conversation,
     client_needs,
-    speech
+    speech,
+    intake,
+    agent
 )
 
 api_router = APIRouter()
@@ -36,4 +38,16 @@ api_router.include_router(
     speech.router,
     prefix="/speech",
     tags=["speech"]
+)
+
+api_router.include_router(
+    intake.router,
+    prefix="/intake",
+    tags=["intake"]
+)
+
+api_router.include_router(
+    agent.router,
+    prefix="/agent",
+    tags=["agent"]
 )

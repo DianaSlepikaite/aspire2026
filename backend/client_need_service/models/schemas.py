@@ -72,6 +72,26 @@ class WorkLocation(str, Enum):
     HYBRID = "hybrid"
 
 
+class IntakeSourceType(str, Enum):
+    """Source type for client intake."""
+    PDF = "pdf"
+    TEXT = "text"
+    AUDIO = "audio"
+    VIDEO = "video"
+    EMAIL = "email"
+    FORM = "form"
+    CHAT_EXPORT = "chat_export"
+    OTHER = "other"
+
+
+class IntakeStatus(str, Enum):
+    """Processing status for intake packages."""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 # Conversation API Schemas
 
 class ConversationStartRequest(BaseModel):
@@ -235,6 +255,8 @@ class ClientNeedBase(BaseModel):
     risk_factors: Optional[List[str]] = None
 
     # Metadata
+    source_channel: Optional[str] = Field(None, max_length=50)
+    language: Optional[str] = Field(None, max_length=10)
     tags: Optional[List[str]] = None
     notes: Optional[str] = None
 
@@ -367,6 +389,106 @@ class ExtractionHistory(BaseModel):
     extraction_method: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+# Client Intake Package Schemas
+
+class IntakeMetadata(BaseModel):
+    """Metadata for intake package."""
+    file_name: Optional[str] = None
+    file_size_bytes: Optional[int] = None
+    mime_type: Optional[str] = None
+    language: Optional[str] = "en"
+    uploaded_by: Optional[str] = None
+    tags: Optional[List[str]] = None
+    custom_fields: Optional[Dict[str, Any]] = None
+
+
+class NormalizedContent(BaseModel):
+    """Normalized content structure."""
+    text: str
+    sections: Optional[List[Dict[str, str]]] = None  # [{title, content}]
+    entities: Optional[List[Dict[str, Any]]] = None  # Extracted entities
+    word_count: Optional[int] = None
+    language: Optional[str] = None
+
+
+class ClientIntakePackageBase(BaseModel):
+    """Base model for client intake package."""
+    source_type: IntakeSourceType
+    raw_content: Optional[str] = None  # Original raw content
+    normalized_content: Optional[NormalizedContent] = None
+    metadata: Optional[IntakeMetadata] = None
+    processing_notes: Optional[str] = None
+
+
+class ClientIntakePackageCreate(BaseModel):
+    """Schema for creating an intake package."""
+    source_type: IntakeSourceType
+    raw_content: str
+    metadata: Optional[IntakeMetadata] = None
+    client_name: Optional[str] = None
+    client_email: Optional[EmailStr] = None
+
+
+class ClientIntakePackageUpdate(BaseModel):
+    """Schema for updating an intake package."""
+    status: Optional[IntakeStatus] = None
+    normalized_content: Optional[NormalizedContent] = None
+    processing_notes: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class ClientIntakePackage(ClientIntakePackageBase):
+    """Complete intake package model with database fields."""
+    id: UUID
+    status: IntakeStatus
+    created_at: datetime
+    updated_at: datetime
+    processed_at: Optional[datetime] = None
+    client_name: Optional[str] = None
+    client_email: Optional[EmailStr] = None
+    client_need_id: Optional[UUID] = None  # Link to extracted client need
+    error_message: Optional[str] = None
+    audit_trail: Optional[List[Dict[str, Any]]] = None  # Processing steps
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "status": "completed",
+                "source_type": "text"
+            }
+        }
+    }
+
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> "ClientIntakePackage":
+        """Create ClientIntakePackage from database row, handling JSONB fields."""
+        import json
+
+        data = dict(row)
+
+        # Parse JSONB fields if they're strings
+        if isinstance(data.get("normalized_content"), str):
+            data["normalized_content"] = json.loads(data["normalized_content"])
+
+        if isinstance(data.get("metadata"), str):
+            data["metadata"] = json.loads(data["metadata"])
+
+        if isinstance(data.get("audit_trail"), str):
+            data["audit_trail"] = json.loads(data["audit_trail"])
+
+        return cls(**data)
+
+
+class ClientIntakePackageList(BaseModel):
+    """Paginated list of intake packages."""
+    items: List[ClientIntakePackage]
+    total: int
+    limit: int
+    offset: int
 
 
 # Health Check Schemas
