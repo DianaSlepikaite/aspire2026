@@ -1,8 +1,14 @@
-"""Configuration for Employee Conversation Service."""
+"""Configuration for Employee Conversation Service.
+Both client and employee services use the same .env file in backend/.
+"""
 
+from pathlib import Path
 from typing import List
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Same .env as client service: backend/.env
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -52,9 +58,67 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DEPLOYMENT_NAME: str = Field(
         default="gpt-4", description="Deployment name"
     )
+    AZURE_OPENAI_API_VERSION: str = Field(
+        default="2024-02-01", description="API version"
+    )
+
+    # Azure Speech (for conversation/speech endpoints)
+    AZURE_SPEECH_KEY: str = Field(default="", description="Azure Speech key")
+    AZURE_SPEECH_REGION: str = Field(
+        default="eastus", description="Azure Speech region"
+    )
+    AZURE_SPEECH_LANGUAGE: str = Field(
+        default="en-US", description="Speech recognition language"
+    )
+    AZURE_SPEECH_VOICE_NAME: str = Field(
+        default="en-US-JennyNeural", description="Default TTS voice"
+    )
+    ENABLE_SPEECH_TO_TEXT: bool = Field(
+        default=True, description="Enable speech-to-text"
+    )
+    ENABLE_TEXT_TO_SPEECH: bool = Field(
+        default=True, description="Enable text-to-speech"
+    )
+    MAX_AUDIO_FILE_SIZE_MB: int = Field(
+        default=10, ge=1, description="Max audio file size (MB)"
+    )
+    MIN_AUDIO_FILE_SIZE_BYTES: int = Field(
+        default=1000, ge=0, description="Min audio file size (bytes)"
+    )
+    ALLOWED_AUDIO_EXTENSIONS: List[str] = Field(
+        default=["wav", "mp3", "ogg", "m4a"],
+        description="Allowed audio extensions",
+    )
+    ALLOWED_AUDIO_MIME_TYPES: List[str] = Field(
+        default=[
+            "audio/wav",
+            "audio/wave",
+            "audio/mpeg",
+            "audio/mp3",
+            "audio/ogg",
+            "audio/mp4",
+            "audio/x-m4a",
+        ],
+        description="Allowed audio MIME types",
+    )
+    SPEECH_STREAM_SESSION_TIMEOUT_MINUTES: int = Field(
+        default=30,
+        ge=1,
+        le=120,
+        description="Streaming speech session idle timeout (minutes)",
+    )
+
+    # Conversation
+    MAX_CONVERSATION_MESSAGES: int = Field(
+        default=50, ge=1, description="Max messages per conversation"
+    )
+    CONVERSATION_TIMEOUT_MINUTES: int = Field(
+        default=30, ge=1, description="Conversation timeout (minutes)"
+    )
+    MIN_PROFILE_COMPLETENESS_FOR_COMPLETION: int = Field(default=70, ge=0, le=100)
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
@@ -83,6 +147,14 @@ class Settings(BaseSettings):
         password = self.EMPLOYEE_DB_PASSWORD or self.DB_PASSWORD
         password_part = f":{password}" if password else ""
         return f"postgresql://{user}{password_part}@{host}:{port}/{name}"
+
+    def has_azure_speech_credentials(self) -> bool:
+        """Check if Azure Speech is configured."""
+        return bool(self.AZURE_SPEECH_KEY and self.AZURE_SPEECH_REGION)
+
+    def get_max_audio_size_bytes(self) -> int:
+        """Max audio file size in bytes."""
+        return self.MAX_AUDIO_FILE_SIZE_MB * 1024 * 1024
 
 
 def get_settings() -> Settings:

@@ -34,12 +34,32 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Employee Conversation Service",
-    description="Employee profile extraction and orchestration via Employee Service Agent",
+    description=(
+        "Employee profile extraction and orchestration via Employee Service Agent. "
+        "**Agent endpoints** (process-upload, process-document, generate-resume, clarifying-questions) "
+        "are under the **agent** tag. Use this service at port **8001** (Swagger: http://localhost:8001/docs)."
+    ),
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
+    openapi_tags=[
+        {
+            "name": "agent",
+            "description": "Employee Service Agent: process-upload, process-document, generate-resume, clarifying-questions",
+        },
+        {
+            "name": "conversation",
+            "description": "Conversation: start, message, status, complete, history",
+        },
+        {"name": "speech", "description": "Speech: transcribe, synthesize, voices"},
+        {
+            "name": "speech-streaming",
+            "description": "Real-time speech streaming over WebSocket: /speech/stream",
+        },
+        {"name": "health", "description": "Health check endpoints"},
+    ],
 )
 
 app.add_middleware(
@@ -62,6 +82,16 @@ async def root():
         "status": "running",
         "docs": "/docs",
         "health": f"{settings.API_V1_PREFIX}/health",
+        "agent_base": f"{settings.API_V1_PREFIX}/agent",
+        "agent_endpoints": [
+            "POST /api/v1/agent/process-upload",
+            "POST /api/v1/agent/process-document",
+            "GET /api/v1/agent/generate-resume/{employee_profile_id}",
+            "POST /api/v1/agent/clarifying-questions",
+        ],
+        "conversation_base": f"{settings.API_V1_PREFIX}/conversation",
+        "speech_base": f"{settings.API_V1_PREFIX}/speech",
+        "speech_stream_ws": f"{settings.API_V1_PREFIX}/speech/stream",
     }
 
 

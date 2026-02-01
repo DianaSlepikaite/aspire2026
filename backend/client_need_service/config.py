@@ -1,11 +1,16 @@
 """
 Configuration management for the Client Need Service Agent.
 Uses Pydantic Settings for type-safe configuration from environment variables.
+Both client and employee services use the same .env file in backend/.
 """
 
+from pathlib import Path
 from typing import List
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Same .env as employee service: backend/.env
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -128,7 +133,10 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
     )
 
     @field_validator("CORS_ORIGINS", mode="before")

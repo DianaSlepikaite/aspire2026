@@ -6,7 +6,7 @@ services, reasons about completeness, and asks clarifying questions when needed.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
@@ -33,6 +33,9 @@ from employee_conversation_service.services.conversation_service import (
     ConversationService,
 )
 from employee_conversation_service.services.speech_service import SpeechService
+from employee_conversation_service.services.resume_generation_service import (
+    generate_resume_pdf,
+)
 from employee_conversation_service.models.schemas import (
     EmployeeProfileCreate,
     EmployeeProfileUpdate,
@@ -357,3 +360,22 @@ Generate specific questions to fill gaps (e.g. experience, certifications, prefe
             messages, use_functions=False
         )
         return response_dict.get("content", "")
+
+    async def generate_resume(self, employee_profile_id: UUID) -> Tuple[bytes, str]:
+        """
+        Generate a PDF resume from an extracted employee profile.
+
+        Fetches the profile from storage and builds a formatted PDF using
+        the resume generation service (template + reportlab).
+
+        Returns:
+            (pdf_bytes, suggested_filename) e.g. (b'...', 'Resume_John_Doe.pdf')
+        """
+        profile = await self.storage_service.get_employee_profile(employee_profile_id)
+        if not profile:
+            raise EmployeeProfileNotFoundError(str(employee_profile_id))
+        pdf_bytes = generate_resume_pdf(profile)
+        name = (profile.full_name or "resume").strip().replace(" ", "_")
+        safe_name = "".join(c for c in name if c.isalnum() or c in "._-")[:80]
+        filename = f"Resume_{safe_name}.pdf" if safe_name else "resume.pdf"
+        return (pdf_bytes, filename)

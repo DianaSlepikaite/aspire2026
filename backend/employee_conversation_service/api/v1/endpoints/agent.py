@@ -5,6 +5,7 @@ from uuid import UUID
 from typing import Optional
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from employee_conversation_service.services.employee_service_agent import (
@@ -44,6 +45,7 @@ class ClarifyingQuestionRequest(BaseModel):
     status_code=status.HTTP_200_OK,
     summary="Process document by ID with agent",
     description="Use the Employee Service Agent to orchestrate extraction from an existing document",
+    tags=["agent"],
 )
 async def process_document_with_agent(request: ProcessDocumentRequest):
     """Process an existing document (by ID) through the Employee Service Agent."""
@@ -77,6 +79,7 @@ async def process_document_with_agent(request: ProcessDocumentRequest):
     status_code=status.HTTP_200_OK,
     summary="Process uploaded document with agent",
     description="Upload a document (e.g. resume) and run the Employee Service Agent to extract profile",
+    tags=["agent"],
 )
 async def process_upload_with_agent(
     file: UploadFile = File(..., description="Document file (e.g. PDF resume)"),
@@ -109,6 +112,7 @@ async def process_upload_with_agent(
     status_code=status.HTTP_200_OK,
     summary="Generate clarifying questions",
     description="Ask the agent to generate clarifying questions for an incomplete employee profile",
+    tags=["agent"],
 )
 async def generate_clarifying_questions(request: ClarifyingQuestionRequest):
     """Generate clarifying questions for an employee profile."""
@@ -137,4 +141,42 @@ async def generate_clarifying_questions(request: ClarifyingQuestionRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Failed to generate questions", "message": str(e)},
+        )
+
+
+@router.get(
+    "/generate-resume/{employee_profile_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Generate resume PDF from profile",
+    description="Generate a formatted PDF resume from an extracted employee profile (template + PDF generation)",
+    tags=["agent"],
+)
+async def generate_resume(employee_profile_id: UUID):
+    """Generate and download a PDF resume from the given employee profile."""
+    try:
+        agent = EmployeeServiceAgent()
+        pdf_bytes, filename = await agent.generate_resume(employee_profile_id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
+    except EmployeeProfileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": e.message, "details": e.details},
+        )
+    except ServiceError as e:
+        logger.exception("Resume generation failed: %s", e)
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details},
+        )
+    except Exception as e:
+        logger.exception("Unexpected error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to generate resume", "message": str(e)},
         )
