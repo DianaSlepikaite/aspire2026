@@ -10,6 +10,7 @@ from io import BytesIO
 
 try:
     import azure.cognitiveservices.speech as speechsdk
+
     SPEECH_SDK_AVAILABLE = True
 except ImportError:
     SPEECH_SDK_AVAILABLE = False
@@ -19,10 +20,53 @@ from client_need_service.config import get_settings
 from client_need_service.core.exceptions import (
     SpeechServiceError,
     ConfigurationError,
-    AudioProcessingError
+    AudioProcessingError,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def validate_audio_input(
+    audio_data: bytes,
+    audio_format: str,
+    filename: Optional[str] = None,
+    content_type: Optional[str] = None,
+) -> None:
+    """
+    Validate audio file size, minimum length, and format for upload/transcribe.
+    Raises AudioProcessingError with error_code in details on failure.
+    """
+    settings = get_settings()
+    max_bytes = settings.get_max_audio_size_bytes()
+    min_bytes = settings.MIN_AUDIO_FILE_SIZE_BYTES
+    allowed_extensions = [e.lower() for e in settings.ALLOWED_AUDIO_EXTENSIONS]
+    allowed_mimes = [m.lower() for m in settings.ALLOWED_AUDIO_MIME_TYPES]
+
+    if len(audio_data) > max_bytes:
+        raise AudioProcessingError(
+            f"Audio file exceeds maximum size of {settings.MAX_AUDIO_FILE_SIZE_MB} MB",
+            details={"error_code": "file_too_large", "max_bytes": max_bytes},
+        )
+    if len(audio_data) < min_bytes:
+        raise AudioProcessingError(
+            "Audio file is empty or too small to process",
+            details={"error_code": "file_too_small", "min_bytes": min_bytes},
+        )
+
+    fmt = audio_format.lower().lstrip(".")
+    if fmt not in allowed_extensions:
+        raise AudioProcessingError(
+            f"Unsupported audio format: {audio_format}. Allowed: {allowed_extensions}",
+            details={"error_code": "unsupported_format", "allowed": allowed_extensions},
+        )
+    if content_type and content_type.lower().split(";")[0].strip() not in allowed_mimes:
+        raise AudioProcessingError(
+            f"Unsupported audio MIME type: {content_type}. Allowed: {allowed_mimes}",
+            details={
+                "error_code": "unsupported_format",
+                "allowed_mime_types": allowed_mimes,
+            },
+        )
 
 
 class SpeechService:
@@ -38,8 +82,7 @@ class SpeechService:
         """Initialize Azure Speech configuration."""
         if not SPEECH_SDK_AVAILABLE:
             logger.warning(
-                "Azure Speech SDK not installed. "
-                "Speech service will not be available."
+                "Azure Speech SDK not installed. Speech service will not be available."
             )
             return
 
@@ -53,7 +96,7 @@ class SpeechService:
         try:
             self._speech_config = speechsdk.SpeechConfig(
                 subscription=self.settings.AZURE_SPEECH_KEY,
-                region=self.settings.AZURE_SPEECH_REGION
+                region=self.settings.AZURE_SPEECH_REGION,
             )
 
             # Set recognition language
@@ -70,9 +113,7 @@ class SpeechService:
 
         except Exception as e:
             logger.error(f"Failed to initialize Azure Speech config: {e}")
-            raise ConfigurationError(
-                f"Failed to initialize Azure Speech: {str(e)}"
-            )
+            raise ConfigurationError(f"Failed to initialize Azure Speech: {str(e)}")
 
     def _ensure_config(self):
         """Ensure speech config is initialized."""
@@ -86,7 +127,7 @@ class SpeechService:
         self,
         audio_data: bytes,
         audio_format: str = "wav",
-        language: Optional[str] = None
+        language: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Transcribe audio to text using speech-to-text.
@@ -101,15 +142,22 @@ class SpeechService:
 
         Raises:
             SpeechServiceError: If transcription fails
-            AudioProcessingError: If audio format is invalid
+            AudioProcessingError: If audio format is invalid or validation fails
         """
         self._ensure_config()
 
         if not self.settings.ENABLE_SPEECH_TO_TEXT:
-            raise SpeechServiceError("Speech-to-text is disabled")
+            raise SpeechServiceError(
+                "Speech-to-text is disabled",
+                details={"error_code": "transcription_disabled"},
+            )
+
+        validate_audio_input(audio_data, audio_format)
 
         try:
-            logger.info(f"Transcribing audio ({len(audio_data)} bytes, format: {audio_format})")
+            logger.info(
+                f"Transcribing audio ({len(audio_data)} bytes, format: {audio_format})"
+            )
 
             # Create audio config from bytes
             audio_stream = speechsdk.audio.PushAudioInputStream()
@@ -120,14 +168,13 @@ class SpeechService:
             if language:
                 speech_config = speechsdk.SpeechConfig(
                     subscription=self.settings.AZURE_SPEECH_KEY,
-                    region=self.settings.AZURE_SPEECH_REGION
+                    region=self.settings.AZURE_SPEECH_REGION,
                 )
                 speech_config.speech_recognition_language = language
 
             # Create recognizer
             recognizer = speechsdk.SpeechRecognizer(
-                speech_config=speech_config,
-                audio_config=audio_config
+                speech_config=speech_config, audio_config=audio_config
             )
 
             # Write audio data to stream
@@ -136,8 +183,7 @@ class SpeechService:
 
             # Perform recognition
             result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                recognizer.recognize_once
+                None, recognizer.recognize_once
             )
 
             if result.reason == speechsdk.ResultReason.RecognizedSpeech:
@@ -146,14 +192,16 @@ class SpeechService:
                 return {
                     "transcription": result.text,
                     "confidence": self._get_confidence_score(result),
-                    "duration_seconds": result.duration.total_seconds() if hasattr(result, 'duration') else 0.0,
-                    "language": language or self.settings.AZURE_SPEECH_LANGUAGE
+                    "duration_seconds": result.duration.total_seconds()
+                    if hasattr(result, "duration")
+                    else 0.0,
+                    "language": language or self.settings.AZURE_SPEECH_LANGUAGE,
                 }
 
             elif result.reason == speechsdk.ResultReason.NoMatch:
                 raise AudioProcessingError(
                     "No speech could be recognized in the audio",
-                    details={"reason": "no_match"}
+                    details={"error_code": "no_speech_detected", "reason": "no_match"},
                 )
 
             elif result.reason == speechsdk.ResultReason.Canceled:
@@ -163,10 +211,21 @@ class SpeechService:
                 if cancellation.reason == speechsdk.CancellationReason.Error:
                     error_msg += f" - Error details: {cancellation.error_details}"
 
-                raise SpeechServiceError(error_msg)
+                raise SpeechServiceError(
+                    error_msg,
+                    details={
+                        "error_code": "transcription_service_error",
+                        "error": str(cancellation.error_details)
+                        if hasattr(cancellation, "error_details")
+                        else None,
+                    },
+                )
 
             else:
-                raise SpeechServiceError(f"Unexpected recognition result: {result.reason}")
+                raise SpeechServiceError(
+                    f"Unexpected recognition result: {result.reason}",
+                    details={"error_code": "transcription_service_error"},
+                )
 
         except (SpeechServiceError, AudioProcessingError):
             raise
@@ -174,7 +233,7 @@ class SpeechService:
             logger.error(f"Failed to transcribe audio: {e}")
             raise SpeechServiceError(
                 f"Failed to transcribe audio: {str(e)}",
-                details={"error": str(e)}
+                details={"error_code": "transcription_service_error", "error": str(e)},
             )
 
     def _get_confidence_score(self, result: Any) -> float:
@@ -195,10 +254,7 @@ class SpeechService:
             return 0.9
 
     async def synthesize_speech(
-        self,
-        text: str,
-        voice_name: Optional[str] = None,
-        output_format: str = "mp3"
+        self, text: str, voice_name: Optional[str] = None, output_format: str = "mp3"
     ) -> bytes:
         """
         Synthesize text to speech audio.
@@ -227,7 +283,7 @@ class SpeechService:
             if voice_name:
                 speech_config = speechsdk.SpeechConfig(
                     subscription=self.settings.AZURE_SPEECH_KEY,
-                    region=self.settings.AZURE_SPEECH_REGION
+                    region=self.settings.AZURE_SPEECH_REGION,
                 )
                 speech_config.speech_synthesis_voice_name = voice_name
 
@@ -243,14 +299,12 @@ class SpeechService:
 
             # Create synthesizer with no audio output (we'll get bytes)
             synthesizer = speechsdk.SpeechSynthesizer(
-                speech_config=speech_config,
-                audio_config=None
+                speech_config=speech_config, audio_config=None
             )
 
             # Synthesize
             result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: synthesizer.speak_text(text)
+                None, lambda: synthesizer.speak_text(text)
             )
 
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
@@ -267,15 +321,16 @@ class SpeechService:
                 raise SpeechServiceError(error_msg)
 
             else:
-                raise SpeechServiceError(f"Unexpected synthesis result: {result.reason}")
+                raise SpeechServiceError(
+                    f"Unexpected synthesis result: {result.reason}"
+                )
 
         except SpeechServiceError:
             raise
         except Exception as e:
             logger.error(f"Failed to synthesize speech: {e}")
             raise SpeechServiceError(
-                f"Failed to synthesize speech: {str(e)}",
-                details={"error": str(e)}
+                f"Failed to synthesize speech: {str(e)}", details={"error": str(e)}
             )
 
     async def get_available_voices(self) -> List[Dict[str, str]]:
@@ -292,23 +347,25 @@ class SpeechService:
 
         try:
             synthesizer = speechsdk.SpeechSynthesizer(
-                speech_config=self._speech_config,
-                audio_config=None
+                speech_config=self._speech_config, audio_config=None
             )
 
             result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                synthesizer.get_voices_async().get
+                None, synthesizer.get_voices_async().get
             )
 
             voices = []
             for voice in result.voices:
-                voices.append({
-                    "name": voice.short_name,
-                    "language": voice.locale,
-                    "gender": voice.gender.name if hasattr(voice.gender, 'name') else "Unknown",
-                    "locale": voice.locale
-                })
+                voices.append(
+                    {
+                        "name": voice.short_name,
+                        "language": voice.locale,
+                        "gender": voice.gender.name
+                        if hasattr(voice.gender, "name")
+                        else "Unknown",
+                        "locale": voice.locale,
+                    }
+                )
 
             logger.info(f"Retrieved {len(voices)} available voices")
 
@@ -317,12 +374,14 @@ class SpeechService:
         except Exception as e:
             logger.error(f"Failed to get available voices: {e}")
             # Return default voice if fetching fails
-            return [{
-                "name": self.settings.AZURE_SPEECH_VOICE_NAME,
-                "language": self.settings.AZURE_SPEECH_LANGUAGE,
-                "gender": "Female",
-                "locale": self.settings.AZURE_SPEECH_LANGUAGE
-            }]
+            return [
+                {
+                    "name": self.settings.AZURE_SPEECH_VOICE_NAME,
+                    "language": self.settings.AZURE_SPEECH_LANGUAGE,
+                    "gender": "Female",
+                    "locale": self.settings.AZURE_SPEECH_LANGUAGE,
+                }
+            ]
 
     async def check_health(self) -> bool:
         """
