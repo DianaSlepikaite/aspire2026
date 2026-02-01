@@ -187,18 +187,21 @@ You should see all services showing as "healthy" or "configured".
 ### "Access Denied" Error
 
 If you get access denied when creating Azure OpenAI:
+
 - Azure OpenAI requires approval. Apply for access at: https://aka.ms/oai/access
 - Processing can take several days
 
 ### "Region Not Available" Error
 
 If your region doesn't support Azure OpenAI:
+
 - Try these regions: `eastus`, `southcentralus`, `westeurope`
 - Check current availability: https://aka.ms/oai/models
 
 ### "Quota Exceeded" Error
 
 If you hit quota limits:
+
 - Check your quota in Azure Portal → Azure OpenAI → Quotas
 - Request quota increase through Azure Portal
 - Consider using rate limiting in your application
@@ -217,11 +220,11 @@ If you hit quota limits:
 - [Azure OpenAI Documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
 - [Azure Speech Documentation](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/)
 - [Azure CLI Reference](https://learn.microsoft.com/en-us/cli/azure/)
-- [Supabase Documentation](https://supabase.com/docs)
 
 ## Support
 
 For issues or questions:
+
 - Azure OpenAI: https://learn.microsoft.com/en-us/azure/ai-services/openai/overview
 - Azure Speech: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/
 - Create an issue in the project repository

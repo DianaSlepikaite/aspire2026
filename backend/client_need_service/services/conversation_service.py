@@ -5,7 +5,7 @@ Conversation service for orchestrating client need conversations.
 import logging
 from typing import Optional, Dict, Any, List
 from uuid import UUID, uuid4
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from client_need_service.config import get_settings
 from client_need_service.core.exceptions import (
@@ -333,7 +333,7 @@ class ConversationService:
                 raise ConversationNotFoundError(str(conversation_id))
 
             # Calculate duration
-            duration = datetime.utcnow() - client_need.conversation_started_at
+            duration = datetime.now(timezone.utc) - client_need.conversation_started_at
             duration_minutes = int(duration.total_seconds() / 60)
 
             # Get missing fields
@@ -480,7 +480,7 @@ class ConversationService:
     async def _check_timeout(self, client_need):
         """Check if conversation has timed out."""
         timeout_delta = timedelta(minutes=self.settings.CONVERSATION_TIMEOUT_MINUTES)
-        elapsed = datetime.utcnow() - client_need.conversation_started_at
+        elapsed = datetime.now(timezone.utc) - client_need.conversation_started_at
 
         if elapsed > timeout_delta:
             raise ConversationTimeoutError(

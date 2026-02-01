@@ -1,5 +1,9 @@
 -- Database schema for Client Need Service Agent
--- Run this script in your Supabase SQL Editor
+-- Run this script in your PostgreSQL database (e.g. client_needs_db)
+--
+-- 1. Create database (e.g. client_needs_db) or use existing.
+-- 2. Set env: DATABASE_URL or DB_HOST, DB_NAME, DB_USER, DB_PASSWORD
+-- 3. Run this entire script in that database.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -62,6 +66,9 @@ CREATE TABLE IF NOT EXISTS client_needs (
     collaboration_tools JSONB, -- ["Slack", "Jira", "GitHub", ...]
     communication_preferences JSONB,
 
+    -- Roles & Disciplines
+    required_roles JSONB, -- [{"category": "technology_engineering", "evidence": "cloud engineering", "description": "...", "count": 2}, ...]
+
     -- AI-Generated Insights
     needs_summary TEXT,
     key_challenges JSONB,
@@ -110,6 +117,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_client_needs_updated_at ON client_needs;
 CREATE TRIGGER update_client_needs_updated_at
 BEFORE UPDATE ON client_needs
 FOR EACH ROW
@@ -163,6 +171,56 @@ CREATE TABLE IF NOT EXISTS extraction_history (
 
 CREATE INDEX IF NOT EXISTS idx_extraction_history_conversation_id ON extraction_history(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_extraction_history_created_at ON extraction_history(created_at);
+
+-- Table: intake_packages (client data ingestion)
+CREATE TABLE IF NOT EXISTS intake_packages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    processed_at TIMESTAMP WITH TIME ZONE,
+
+    -- Status and Type
+    status VARCHAR(50) DEFAULT 'pending', -- pending, processing, completed, failed
+    source_type VARCHAR(50) NOT NULL, -- pdf, text, audio, video, email, form, chat_export, other
+
+    -- Client Information
+    client_name VARCHAR(255),
+    client_email VARCHAR(255),
+
+    -- Content
+    raw_content TEXT, -- Original unprocessed content
+    normalized_content JSONB, -- Structured normalized content
+
+    -- Metadata
+    metadata JSONB, -- {file_name, file_size_bytes, mime_type, language, uploaded_by, tags, custom_fields}
+
+    -- Processing
+    processing_notes TEXT,
+    error_message TEXT,
+    audit_trail JSONB, -- Array of processing steps with timestamps
+
+    -- Linking
+    client_need_id UUID, -- Link to extracted client need
+
+    CONSTRAINT fk_intake_client_need
+        FOREIGN KEY (client_need_id)
+        REFERENCES client_needs(id)
+        ON DELETE SET NULL
+);
+
+-- Indexes for intake_packages
+CREATE INDEX IF NOT EXISTS idx_intake_packages_status ON intake_packages(status);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_source_type ON intake_packages(source_type);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_created_at ON intake_packages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_client_email ON intake_packages(client_email);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_client_need_id ON intake_packages(client_need_id);
+
+-- Trigger for updated_at on intake_packages
+DROP TRIGGER IF EXISTS update_intake_packages_updated_at ON intake_packages;
+CREATE TRIGGER update_intake_packages_updated_at
+BEFORE UPDATE ON intake_packages
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
 
 -- Enable Row Level Security (optional, for production)
 -- ALTER TABLE client_needs ENABLE ROW LEVEL SECURITY;
