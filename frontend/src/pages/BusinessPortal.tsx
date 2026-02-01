@@ -8,6 +8,7 @@ import BusinessReports from "@/components/layout/BusinessReports";
 
 export default function BusinessPortal() {
   const [activeTab, setActiveTab] = useState<"staffing" | "roles" | "reports">("staffing");
+  const [selectedClientNeedId, setSelectedClientNeedId] = useState<string | null>(null);
 
   return (
     <div className="flex h-screen overflow-hidden dark">
@@ -16,6 +17,10 @@ export default function BusinessPortal() {
         userName="Alex Rivera"
         userRole="Workforce Planning Lead"
         userImage="https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=100&h=100&fit=crop&crop=face"
+        onClientNeedCreated={(clientNeedId) => {
+          setSelectedClientNeedId(clientNeedId);
+          setActiveTab("roles");
+        }}
       />
 
       <main className="flex-1 h-full bg-background overflow-y-auto">
@@ -66,8 +71,14 @@ export default function BusinessPortal() {
         </header>
 
         <div className="p-10 max-w-6xl mx-auto space-y-12">
-          {activeTab === "staffing" && <BusinessStaffing />}
-          {activeTab === "roles" && <BusinessRoles />}
+          {activeTab === "staffing" && (
+            <BusinessStaffing
+              selectedClientNeedId={selectedClientNeedId}
+              onSelectNeed={setSelectedClientNeedId}
+              onViewRoles={() => setActiveTab("roles")}
+            />
+          )}
+          {activeTab === "roles" && <BusinessRoles clientNeedId={selectedClientNeedId} />}
           {activeTab === "reports" && <BusinessReports />}
         </div>
       </main>

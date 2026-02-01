@@ -1,58 +1,8 @@
-import { StaffingProjectCard } from "@/components/cards/StaffingProjectCard";
+import { useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Calendar, ChevronDown, Filter, PlusCircle, Zap } from "lucide-react";
-
-const projects = [
-  {
-    projectId: "ALP-829",
-    title: "Cloud Migration Alpha",
-    image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=200&h=200&fit=crop",
-    timeline: "July - Dec 2024",
-    manager: "Sarah Chen",
-    matchHealth: 92,
-    priority: "high" as const,
-    roles: [
-      {
-        role: "Senior DevOps Engineer",
-        type: "Cloud Infrastructure • Full-time",
-        candidateName: "Marcus V. Thompson",
-        candidateImage: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
-        matchScore: 98,
-        aiInsight: "Strong AWS/Terraform history + available immediately for Q3 ramp up.",
-        availability: "available" as const,
-      },
-      {
-        role: "Security Architect",
-        type: "Compliance • Part-time",
-        candidateName: "Dr. Elena Rodriguez",
-        candidateImage: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop&crop=face",
-        matchScore: 86,
-        aiInsight: "Matches 4/5 compliance certifications; overlap with current project manageable.",
-        availability: "limited" as const,
-      },
-    ],
-  },
-  {
-    projectId: "INT-041",
-    title: "Data Lake Governance",
-    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&h=200&fit=crop",
-    timeline: "Aug - Oct 2024",
-    manager: "David K. Miller",
-    matchHealth: 64,
-    priority: "internal" as const,
-    roles: [
-      {
-        role: "Principal Data Scientist",
-        type: "Machine Learning • Full-time",
-        candidateName: null,
-        candidateImage: null,
-        matchScore: null,
-        aiInsight: "Requires niche 'Snowflake Governance' expertise currently unassigned in pool.",
-        availability: "unavailable" as const,
-      },
-    ],
-  },
-];
+import { useClientNeeds } from "@/hooks/useClientNeeds";
 
 const filterChips = [
   { label: "All Departments", active: true, hasDropdown: true },
@@ -61,7 +11,26 @@ const filterChips = [
   { label: "Q3-Q4 Availability", active: false, icon: Calendar },
 ];
 
-export default function BusinessStaffing() {
+interface BusinessStaffingProps {
+  selectedClientNeedId?: string | null;
+  onSelectNeed?: (id: string) => void;
+  onViewRoles?: () => void;
+}
+
+export default function BusinessStaffing({
+  selectedClientNeedId,
+  onSelectNeed,
+  onViewRoles,
+}: BusinessStaffingProps) {
+  const { data, isLoading, isError } = useClientNeeds({ limit: 8, offset: 0 });
+  const items = data?.items ?? [];
+
+  useEffect(() => {
+    if (!selectedClientNeedId && items[0]?.id && onSelectNeed) {
+      onSelectNeed(items[0].id);
+    }
+  }, [items, onSelectNeed, selectedClientNeedId]);
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -101,12 +70,87 @@ export default function BusinessStaffing() {
       <div className="space-y-6">
         <h4 className="text-lg font-bold tracking-tight flex items-center gap-2">
           <Zap className="size-5 text-primary" />
-          Active Project Matches
+          Client Needs Intake
         </h4>
 
-        {projects.map((project, idx) => (
-          <StaffingProjectCard key={idx} {...project} />
-        ))}
+        {isLoading && (
+          <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+            Loading client needs...
+          </div>
+        )}
+
+        {isError && (
+          <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+            Unable to load client needs. Check the client-need service and try again.
+          </div>
+        )}
+
+        {!isLoading && !isError && items.length === 0 && (
+          <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+            No client needs found yet. Upload a brief to get started.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4">
+          {items.map((need) => {
+            const isSelected = need.id === selectedClientNeedId;
+            return (
+              <button
+                key={need.id}
+                type="button"
+                onClick={() => onSelectNeed?.(need.id)}
+                className={`text-left rounded-2xl border p-5 transition-colors ${
+                  isSelected ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary/30"
+                }`}
+              >
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <h5 className="text-lg font-semibold">
+                        {need.project_title || "Untitled Client Need"}
+                      </h5>
+                      {need.urgency_level && (
+                        <Badge variant={need.urgency_level === "critical" ? "destructive" : "secondary"}>
+                          {need.urgency_level}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {need.client_company || need.client_name || "Client information pending"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {(need.required_skills || []).slice(0, 4).map((skill) => (
+                        <Badge key={skill} variant="outline">
+                          {skill}
+                        </Badge>
+                      ))}
+                      {need.required_skills && need.required_skills.length > 4 && (
+                        <Badge variant="outline">+{need.required_skills.length - 4} more</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="text-right">
+                      <p className="text-xs uppercase tracking-wide">Completeness</p>
+                      <p className="text-lg font-semibold text-foreground">{need.profile_completeness_score}%</p>
+                    </div>
+                    <Button
+                      variant={isSelected ? "default" : "outline"}
+                      className="font-semibold"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectNeed?.(need.id);
+                        onViewRoles?.();
+                      }}
+                    >
+                      View Roles
+                    </Button>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="mt-6 flex flex-col items-center gap-3">
