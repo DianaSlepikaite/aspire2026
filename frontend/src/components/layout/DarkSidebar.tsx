@@ -7,13 +7,16 @@ interface DarkSidebarProps {
   userName?: string;
   userRole?: string;
   userImage?: string;
+  variant?: "career" | "business";
 }
 
 export function DarkSidebar({ 
   userName = "Sarah Jenkins",
   userRole = "Senior Project Manager",
-  userImage = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face"
+  userImage = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
+  variant = "career",
 }: DarkSidebarProps) {
+  const isBusiness = variant === "business";
   return (
     <aside className="w-1/2 min-w-[400px] h-full bg-background flex flex-col border-r border-border p-8">
       {/* Logo */}
@@ -22,16 +25,21 @@ export function DarkSidebar({
           <Zap className="size-4 text-primary-foreground" />
         </div>
         <h2 className="text-foreground text-xl font-bold tracking-tight">Talent Orchestration</h2>
+        <span className="bg-success/10 text-success text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+          {isBusiness ? "Business" : "Career"}
+        </span>
       </div>
 
       {/* Welcome Message */}
       <div className="flex-1 flex flex-col justify-between gap-8">
         <div className="space-y-4">
           <h1 className="text-4xl font-extrabold text-foreground leading-tight">
-            Welcome back, {userName.split(' ')[0]}.
+            Welcome back, {userName.split(" ")[0]}.
           </h1>
           <p className="text-muted-foreground text-lg">
-            Your AI career assistant is ready. How can I help you grow today?
+            {isBusiness
+              ? "Your AI business agent is ready. How can I help you staff today?"
+              : "Your AI career assistant is ready. How can I help you grow today?"}
           </p>
         </div>
 
@@ -54,7 +62,11 @@ export function DarkSidebar({
       <div className="bg-card border border-border rounded-xl p-4">
           <Textarea
             className="w-full bg-transparent border-none resize-none h-32 text-base placeholder:text-muted-foreground focus-visible:ring-0"
-            placeholder="Ask AI to analyze your recent project or update your CV..."
+            placeholder={
+              isBusiness
+                ? "Ask AI to analyze staffing gaps, prioritize roles, or draft a project request..."
+                : "Ask AI to analyze your recent project or update your CV..."
+            }
           />
           <div className="flex items-center justify-between pt-2 border-t border-border mt-4">
             <div className="flex items-center gap-2">
