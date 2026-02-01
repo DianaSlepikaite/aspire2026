@@ -181,7 +181,57 @@ class SpeechService:
             audio_stream.write(audio_data)
             audio_stream.close()
 
-            # Perform recognition
+            # Use continuous recognition for longer audio
+            # This will transcribe the entire audio file, not just until the first pause
+            done = asyncio.Event()
+            all_results = []
+
+            def recognized_callback(evt):
+                """Callback for each recognized segment."""
+                if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                    all_results.append(evt.result.text)
+                    logger.debug(f"Recognized segment: {evt.result.text[:50]}...")
+
+            def stopped_callback(evt):
+                """Callback when recognition stops."""
+                asyncio.get_event_loop().call_soon_threadsafe(done.set)
+
+            # Connect callbacks
+            recognizer.recognized.connect(recognized_callback)
+            recognizer.session_stopped.connect(stopped_callback)
+            recognizer.canceled.connect(stopped_callback)
+
+            # Start continuous recognition
+            recognizer.start_continuous_recognition()
+
+            # Wait for completion (with timeout)
+            try:
+                await asyncio.wait_for(done.wait(), timeout=120.0)
+            except asyncio.TimeoutError:
+                logger.warning("Recognition timeout - using partial results")
+            finally:
+                recognizer.stop_continuous_recognition()
+
+            # Combine all recognized segments
+            full_transcription = " ".join(all_results).strip()
+
+            if not full_transcription:
+                raise AudioProcessingError(
+                    "No speech could be recognized in the audio",
+                    details={"error_code": "no_speech_detected", "reason": "no_match"},
+                )
+
+            logger.info(f"Transcribed: {full_transcription[:50]}... ({len(full_transcription)} chars)")
+
+            # Create a result-like object for compatibility
+            return {
+                "transcription": full_transcription,
+                "confidence": 0.95,  # Azure doesn't provide confidence for continuous recognition
+                "duration_seconds": 0.0,  # Duration not available in continuous mode
+                "language": language or self.settings.AZURE_SPEECH_LANGUAGE,
+            }
+
+            # OLD CODE USING recognize_once() - keeping for reference but won't be reached
             result = await asyncio.get_event_loop().run_in_executor(
                 None, recognizer.recognize_once
             )
@@ -189,12 +239,22 @@ class SpeechService:
             if result.reason == speechsdk.ResultReason.RecognizedSpeech:
                 logger.info(f"Transcribed: {result.text[:50]}...")
 
+                # Extract duration - Azure returns it as ticks (100 nanosecond units)
+                duration_seconds = 0.0
+                if hasattr(result, "duration") and result.duration:
+                    if hasattr(result.duration, "total_seconds"):
+                        # Duration is a timedelta object
+                        duration_seconds = result.duration.total_seconds()
+                    elif isinstance(result.duration, (int, float)):
+                        # Duration is in ticks (100 nanosecond units)
+                        duration_seconds = result.duration / 10_000_000.0
+                    else:
+                        duration_seconds = 0.0
+
                 return {
                     "transcription": result.text,
                     "confidence": self._get_confidence_score(result),
-                    "duration_seconds": result.duration.total_seconds()
-                    if hasattr(result, "duration")
-                    else 0.0,
+                    "duration_seconds": duration_seconds,
                     "language": language or self.settings.AZURE_SPEECH_LANGUAGE,
                 }
 
