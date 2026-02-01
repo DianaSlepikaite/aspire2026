@@ -57,15 +57,8 @@ const filters = [
 
 export default function Matches() {
   return (
-    <div className="min-h-screen bg-background dark">
-      <Header />
       
-      <main className="max-w-[1440px] mx-auto flex gap-6 p-6">
-        {/* AI Sidebar */}
-        <AISidebar 
-          userName="Sarah"
-          message="Hey Sarah! Based on your recent certification in Cloud Architecture, I've found 3 new matches in the Engineering department."
-        />
+      <section >
 
         {/* Main Content */}
         <div className="flex-1 space-y-6">
@@ -73,14 +66,8 @@ export default function Matches() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h1 className="text-4xl font-black tracking-tight mb-2">Your Role Matches</h1>
+                <h3 className="text-2xl font-bold tracking-tight mb-2">Your Role Matches</h3>
                 <p className="text-muted-foreground">Discover your next career move within the ecosystem.</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button variant="outline" className="font-bold">
-                  <Filter className="size-4 mr-2" />
-                  Advanced Filters
-                </Button>
               </div>
             </div>
 
@@ -112,9 +99,6 @@ export default function Matches() {
             ))}
           </div>
         </div>
-      </main>
-
-      <Footer />
-    </div>
+      </section>
   );
 }

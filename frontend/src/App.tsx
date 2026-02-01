@@ -4,11 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import Matches from "./pages/Matches";
+import Matches from "./components/layout/Matches";
 import Staffing from "./pages/Staffing";
 import Roles from "./pages/Roles";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
+import Mode from "./pages/Mode";
+import Core from "./components/layout/Core";
 
 const queryClient = new QueryClient();
 
@@ -19,13 +21,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/matches" element={<Matches />} />
-          <Route path="/staffing" element={<Staffing />} />
-          <Route path="/roles" element={<Roles />} />
+          {/* Select Mode */}
+          <Route path="/" element={<Mode/>}/>
+          {/* Career profile routes */}
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/portal" element={<Index />} />
+          <Route path="/matches" element={<Matches />} />
+          <Route path="/cv" element={<Core/>}/>
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
+
+          {/* Staffing/business routes */}
+          <Route path="/staffing" element={<Staffing />} />
+          <Route path="/roles" element={<Roles />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

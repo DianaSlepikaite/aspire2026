@@ -117,17 +117,6 @@ export default function Onboarding() {
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="mt-16 flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
-          <Button variant="ghost" className="text-sm font-bold text-muted-foreground hover:text-foreground">
-            Skip for now, I'll do this later
-          </Button>
-          <div className="h-4 w-[1px] bg-border hidden sm:block" />
-          <Button size="lg" className="font-bold shadow-xl shadow-primary/20 hover:-translate-y-0.5 active:translate-y-0 transition-all">
-            Next Step
-            <ArrowRight className="size-4 ml-2" />
-          </Button>
-        </div>
       </main>
 
       <Footer variant="minimal" />

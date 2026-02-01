@@ -113,7 +113,7 @@ export default function Roles() {
         <header className="flex items-center justify-between h-16 border-b border-border px-8 bg-background/50 backdrop-blur-md sticky top-0 z-10">
           <nav className="flex items-center gap-6">
             <NavLink 
-              to="/" 
+              to="/portal"
               className="text-foreground text-sm font-semibold"
               activeClassName="text-primary"
             >

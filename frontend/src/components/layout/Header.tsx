@@ -27,7 +27,7 @@ export function Header({ variant = "default" }: HeaderProps) {
           {/* Navigation */}
           <nav className="hidden md:flex items-center gap-6">
             <NavLink 
-              to="/" 
+              to="/portal" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               activeClassName="text-primary font-semibold"
             >
