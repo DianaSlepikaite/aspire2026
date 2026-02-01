@@ -18,7 +18,7 @@ pip install -r requirements.txt
 Create a `.env` from `.env.example` and set at least:
 
 - **Azure Speech** (for transcribe and streaming): `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`
-- **Supabase** (for intake/DB): `DATABASE_URL` or `DB_*` if you use intake/agent
+- **PostgreSQL** (for intake/DB): `DATABASE_URL` or `DB_*` if you use intake/agent
 
 Then:
 

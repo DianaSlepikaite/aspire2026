@@ -12,6 +12,7 @@
 ## What Was Merged
 
 ### New Employee Conversation Service Files (43 files)
+
 - Complete employee conversation service implementation
 - Employee profile extraction with AI
 - Document upload and parsing (resume/CV)
@@ -21,11 +22,13 @@
 - Comprehensive test suite
 
 ### Updated Files
+
 - `requirements.txt` - Added dependencies for both services
 - `.gitignore` - Added comprehensive Python/project ignores
 - `README.md` - Updated documentation
 
 ### New Helper Scripts
+
 - `.github/MERGE_GUIDE.md` - Guide for future merges
 - `scripts/check_branch_ready.sh` - Branch readiness checker
 - `START_BOTH_SERVICES.sh` - Start both services easily
@@ -64,9 +67,11 @@ feat/client-need-service-agent/
 ## Services Overview
 
 ### 1. Client Need Service (Port 8000)
+
 **Purpose:** Extract client legal needs from conversations and documents
 
 **Key Features:**
+
 - Natural language conversation
 - Audio transcription
 - Document ingestion (PDFs)
@@ -76,9 +81,11 @@ feat/client-need-service-agent/
 **Database:** `client_needs_db`
 
 ### 2. Employee Conversation Service (Port 8001)
+
 **Purpose:** Extract employee skills and experience through conversation
 
 **Key Features:**
+
 - Natural language conversation
 - Resume/CV upload and parsing
 - Skill extraction (technical & soft skills)
@@ -129,15 +136,19 @@ python test_employee_conversation.py
 ## Conflicts Resolved
 
 ### 1. requirements.txt
+
 **Issue:** Both branches added different dependencies
 **Resolution:** Kept both sets of dependencies (merged)
+
 - Client service: langchain, pypdf
 - Employee service: PyPDF2, python-docx, azure-storage-blob
 
 ### 2. schema.sql
+
 **Issue:** Different schema changes
 **Resolution:** Kept client service schema (employee has its own)
-- `backend/schema.sql` → Client service
+
+- `backend/client_need_service/db/schema.sql` → Client service
 - `backend/employee_conversation_service/schema.sql` → Employee service
 
 ---
@@ -145,12 +156,14 @@ python test_employee_conversation.py
 ## Next Steps
 
 ### 1. Test Both Services
+
 ```bash
 ./START_BOTH_SERVICES.sh
 # Visit http://localhost:8000/docs and http://localhost:8001/docs
 ```
 
 ### 2. Install New Dependencies
+
 ```bash
 cd backend
 source venv/bin/activate
@@ -158,13 +171,16 @@ pip install -r requirements.txt
 ```
 
 ### 3. Setup Databases
+
 Both services will auto-create their schemas on first run.
 
 Ensure PostgreSQL is running with these databases:
+
 - `client_needs_db` (client service)
 - `employee_conversation_db` (employee service)
 
 ### 4. Push to Remote (Optional)
+
 ```bash
 git push origin feat/client-need-service-agent
 ```
@@ -174,6 +190,7 @@ git push origin feat/client-need-service-agent
 ## Independent Operation
 
 Both services are **completely independent**:
+
 - ✅ Different databases
 - ✅ Different ports
 - ✅ Different .env files
@@ -186,6 +203,7 @@ Both services are **completely independent**:
 ## Future Development
 
 ### Working on Client Service Only
+
 ```bash
 git checkout feat/client-need-service-agent
 # Modify only client_need_service/ files
@@ -193,6 +211,7 @@ git commit -m "feat(client): your change"
 ```
 
 ### Working on Employee Service Only
+
 ```bash
 git checkout feat/client-need-service-agent
 # Modify only employee_conversation_service/ files
@@ -200,6 +219,7 @@ git commit -m "feat(employee): your change"
 ```
 
 ### Working on Both
+
 ```bash
 # Make changes to both
 git commit -m "feat: change affecting both services"
@@ -210,6 +230,7 @@ git commit -m "feat: change affecting both services"
 ## Troubleshooting
 
 ### Port Already in Use
+
 ```bash
 # Check what's using the ports
 lsof -i :8000
@@ -220,6 +241,7 @@ pkill -f "uvicorn.*main:app"
 ```
 
 ### Database Connection Issues
+
 ```bash
 # Check PostgreSQL is running
 pg_isready
@@ -229,6 +251,7 @@ psql -l | grep -E "(client_needs|employee_conversation)"
 ```
 
 ### Import Errors
+
 ```bash
 # Reinstall dependencies
 cd backend
@@ -252,11 +275,13 @@ pip install -r requirements.txt
 ## Questions or Issues?
 
 Refer to:
+
 - `.github/MERGE_GUIDE.md` - Detailed merge guide
 - `scripts/check_branch_ready.sh` - Branch validation
 - `START_BOTH_SERVICES.sh` - Service startup
 
 Or check commit history:
+
 ```bash
 git log --oneline --graph -10
 ```

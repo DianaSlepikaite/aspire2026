@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from functools import lru_cache
 
 from client_need_service.config import Settings, get_settings
-from client_need_service.core.database import get_supabase_client
+from client_need_service.core.database import get_db_pool
 
 
 @lru_cache
@@ -17,14 +17,14 @@ def get_cached_settings() -> Settings:
 
 async def get_db_client():
     """
-    Dependency for getting Supabase database client.
+    Dependency for getting PostgreSQL connection pool.
 
     Yields:
-        Supabase client instance
+        asyncpg connection pool
     """
-    client = await get_supabase_client()
+    pool = await get_db_pool()
     try:
-        yield client
+        yield pool
     finally:
         # Cleanup if needed
         pass

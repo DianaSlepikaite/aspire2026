@@ -1,5 +1,9 @@
 -- Database schema for Client Need Service Agent
--- Run this script in your PostgreSQL database
+-- Run this script in your PostgreSQL database (e.g. client_needs_db)
+--
+-- 1. Create database (e.g. client_needs_db) or use existing.
+-- 2. Set env: DATABASE_URL or DB_HOST, DB_NAME, DB_USER, DB_PASSWORD
+-- 3. Run this entire script in that database.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -113,6 +117,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_client_needs_updated_at ON client_needs;
 CREATE TRIGGER update_client_needs_updated_at
 BEFORE UPDATE ON client_needs
 FOR EACH ROW
@@ -211,6 +216,7 @@ CREATE INDEX IF NOT EXISTS idx_intake_packages_client_email ON intake_packages(c
 CREATE INDEX IF NOT EXISTS idx_intake_packages_client_need_id ON intake_packages(client_need_id);
 
 -- Trigger for updated_at on intake_packages
+DROP TRIGGER IF EXISTS update_intake_packages_updated_at ON intake_packages;
 CREATE TRIGGER update_intake_packages_updated_at
 BEFORE UPDATE ON intake_packages
 FOR EACH ROW
