@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ChevronDown, PlusCircle, Zap } from "lucide-react";
 import type { AgentResponse, ClientNeed } from "@/lib/clientNeedApi";
 import { useClientNeedsList } from "@/hooks/useClientNeeds";
+import { useQueries } from "@tanstack/react-query";
+import { findMatchingCandidates } from "@/lib/clientNeedApi";
 
 const PAGE_SIZE = 5;
 
@@ -47,6 +49,33 @@ export default function BusinessStaffing({
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const runMap = new Map(agentRuns.filter((run) => run.client_need_id).map((run) => [run.client_need_id!, run]));
+
+  const matchQueries = useQueries({
+    queries: items.map((need) => ({
+      queryKey: ["client-need-matches", need.id],
+      queryFn: () =>
+        findMatchingCandidates({
+          client_need_id: need.id,
+          max_results: 3,
+          min_match_score: 60,
+        }),
+      enabled: Boolean(need.id),
+    })),
+  });
+
+  const matchByNeedId = useMemo(() => {
+    const map = new Map<string, { count: number; topScore: number; loading: boolean }>();
+    items.forEach((need, idx) => {
+      const query = matchQueries[idx];
+      const matches = query?.data?.matches ?? [];
+      map.set(need.id, {
+        count: matches.length,
+        topScore: matches[0]?.match_score ?? 0,
+        loading: query?.isLoading ?? false,
+      });
+    });
+    return map;
+  }, [items, matchQueries]);
 
   const handleFilterToggle = (key: FilterKey, value: string | number) => {
     setPageSize(PAGE_SIZE);
@@ -142,9 +171,23 @@ export default function BusinessStaffing({
             const id = need.id;
             const isSelected = id === selectedClientNeedId;
             const run = runMap.get(id);
-            const completeness = need.profile_completeness_score ?? run?.completeness_score ?? 0;
-            const missingFields = need.missing_information ?? run?.missing_fields ?? [];
+            const apiCompleteness = need.profile_completeness_score ?? need.profile_completeness;
+            const runCompleteness = run?.completeness_score;
+            const completeness =
+              typeof apiCompleteness === "number" && apiCompleteness > 0
+                ? apiCompleteness
+                : typeof runCompleteness === "number"
+                  ? runCompleteness
+                  : apiCompleteness ?? 0;
+            const missingFields =
+              need.missing_information && need.missing_information.length > 0
+                ? need.missing_information
+                : run?.missing_fields ?? [];
             const summary = need.needs_summary ?? need.project_description ?? run?.output ?? "No summary available.";
+            const matchSummary = matchByNeedId.get(id);
+            const matchCount = matchSummary?.count ?? 0;
+            const topScore = matchSummary?.topScore ?? 0;
+            const isMatching = matchSummary?.loading ?? false;
             return (
               <button
                 key={id}
@@ -160,6 +203,13 @@ export default function BusinessStaffing({
                       <h5 className="text-lg font-semibold">
                         {need.project_title ?? `Client Need #${id.slice(0, 8)}`}
                       </h5>
+                      {isMatching ? (
+                        <Badge variant="outline">Matching...</Badge>
+                      ) : (
+                        <Badge variant="secondary">
+                          {matchCount} matches{topScore ? ` · Top ${topScore}%` : ""}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {summary.slice(0, 120)}

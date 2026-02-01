@@ -121,10 +121,19 @@ class ClientNeedAgent:
                 extracted_needs
             )
 
-            # Update completeness score
+            # Recompute completeness based on persisted data
+            profile_dict = client_need.model_dump(exclude_none=True)
+            completeness_score = self.extraction_service.calculate_completeness_score(profile_dict)
+            missing_fields = self.extraction_service.identify_missing_fields(profile_dict)
+            critical_missing = self.extraction_service.identify_critical_missing_fields(profile_dict)
+
+            # Update completeness score + missing info to keep UI aligned with agent output
             await self.storage_service.update_client_need(
                 client_need.id,
-                ClientNeedUpdate(profile_completeness_score=metadata["completeness_score"])
+                ClientNeedUpdate(
+                    profile_completeness_score=completeness_score,
+                    missing_information=missing_fields[:10]
+                )
             )
 
             # Link intake package to client need
@@ -138,15 +147,12 @@ class ClientNeedAgent:
                 "action": "Created client need profile",
                 "details": {
                     "client_need_id": str(client_need.id),
-                    "completeness_score": metadata["completeness_score"]
+                    "completeness_score": completeness_score
                 }
             })
 
             # Step 4: Analyze missing information
             logger.info("Step 4: Analyzing missing information")
-            profile_dict = client_need.model_dump()
-            missing_fields = self.extraction_service.identify_missing_fields(profile_dict)
-            critical_missing = self.extraction_service.identify_critical_missing_fields(profile_dict)
 
             steps.append({
                 "step": "analyze_completeness",
@@ -161,17 +167,16 @@ class ClientNeedAgent:
             logger.info("Step 5: Generating summary")
             summary = await self._generate_summary(
                 client_need=client_need,
-                completeness_score=metadata["completeness_score"],
+                completeness_score=completeness_score,
                 missing_fields=missing_fields[:10],  # Top 10
                 critical_missing=critical_missing
             )
 
-            # Persist summary + missing info for frontend display
+            # Persist summary for frontend display
             await self.storage_service.update_client_need(
                 client_need.id,
                 ClientNeedUpdate(
-                    needs_summary=summary,
-                    missing_information=missing_fields[:10]
+                    needs_summary=summary
                 )
             )
 
@@ -181,7 +186,7 @@ class ClientNeedAgent:
                 "output": summary,
                 "intermediate_steps": steps,
                 "client_need_id": str(client_need.id),
-                "completeness_score": metadata["completeness_score"],
+                "completeness_score": completeness_score,
                 "missing_fields": missing_fields[:10],
                 "critical_missing_fields": critical_missing
             }

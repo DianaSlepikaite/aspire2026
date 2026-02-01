@@ -147,6 +147,12 @@ class MatchingAgent:
         try:
             pool = await self._get_employee_db_pool()
             async with pool.acquire() as conn:
+                min_score = 0
+                if filters and isinstance(filters, dict):
+                    try:
+                        min_score = int(filters.get("min_profile_score", 0))
+                    except (TypeError, ValueError):
+                        min_score = 0
                 # Build query with optional filters
                 query = """
                     SELECT id, full_name, email, phone, summary,
@@ -154,11 +160,11 @@ class MatchingAgent:
                            experience, preferred_roles, profile_completeness_score,
                            created_at, updated_at
                     FROM employee_profiles
-                    WHERE profile_completeness_score >= 30
+                    WHERE profile_completeness_score >= $1
                     ORDER BY profile_completeness_score DESC, updated_at DESC
                 """
 
-                rows = await conn.fetch(query)
+                rows = await conn.fetch(query, min_score)
 
                 # Convert to dictionaries
                 profiles = []

@@ -1,4 +1,5 @@
 import { Search, Bell, Settings } from "lucide-react";
+import { TalentMatchMark } from "@/components/brand/TalentMatchMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NavLink } from "@/components/NavLink";
@@ -15,12 +16,10 @@ export function Header({ variant = "default" }: HeaderProps) {
           {/* Logo */}
           <div className="flex items-center gap-2">
             <div className="size-8 bg-primary rounded-lg flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="size-5 text-primary-foreground" fill="currentColor">
-                <path d="M21.22 22C21.22 22 18.04 17 20.58 12C23.43 6.47 21.19 2 21.19 2L3.51 2C3.51 2 5.83 6.47 2.98 12C0.44 17 3.64 22 3.64 22L21.22 22Z" />
-              </svg>
+              <TalentMatchMark className="size-5 text-primary-foreground" />
             </div>
             <h2 className="text-lg font-bold tracking-tight hidden sm:block">
-              Talent Orchestrator
+              TalentMatch
             </h2>
           </div>
 

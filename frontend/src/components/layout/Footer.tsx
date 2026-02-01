@@ -15,7 +15,7 @@ export function Footer({ variant = "default" }: FooterProps) {
             <a href="#" className="hover:underline">Help Center</a>
           </div>
           <div className="text-xs text-muted-foreground/60">
-            © 2024 Talent Orchestration Platform. All rights reserved.
+            © 2024 TalentMatch Platform. All rights reserved.
           </div>
         </div>
       </footer>
