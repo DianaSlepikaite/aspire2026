@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 from typing import Optional
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, status
+from fastapi import APIRouter, File, UploadFile, HTTPException, status, Form
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,12 @@ class ProcessDocumentRequest(BaseModel):
     document_id: UUID = Field(..., description="ID of the document to process")
     user_query: Optional[str] = Field(
         None, description="Optional instructions for the agent"
+    )
+    employee_profile_id: Optional[UUID] = Field(
+        None, description="Existing employee profile id to update"
+    )
+    conversation_id: Optional[UUID] = Field(
+        None, description="Conversation id to link or resolve profile"
     )
 
 
@@ -54,6 +60,8 @@ async def process_document_with_agent(request: ProcessDocumentRequest):
         result = await agent.process_document_by_id(
             document_id=request.document_id,
             user_query=request.user_query,
+            employee_profile_id=request.employee_profile_id,
+            conversation_id=request.conversation_id,
         )
         return result
     except DocumentNotFoundError as e:
@@ -83,6 +91,12 @@ async def process_document_with_agent(request: ProcessDocumentRequest):
 )
 async def process_upload_with_agent(
     file: UploadFile = File(..., description="Document file (e.g. PDF resume)"),
+    employee_profile_id: Optional[UUID] = Form(
+        None, description="Existing employee profile id to update"
+    ),
+    conversation_id: Optional[UUID] = Form(
+        None, description="Conversation id to link or resolve profile"
+    ),
 ):
     """Upload a document and process it through the Employee Service Agent."""
     try:
@@ -92,6 +106,8 @@ async def process_upload_with_agent(
             file_content=content,
             file_name=file.filename,
             mime_type=file.content_type,
+            employee_profile_id=employee_profile_id,
+            conversation_id=conversation_id,
         )
         return result
     except ServiceError as e:

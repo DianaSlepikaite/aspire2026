@@ -7,6 +7,7 @@ import BusinessRoles from "@/components/layout/BusinessRoles";
 import BusinessReports from "@/components/layout/BusinessReports";
 import { AgentResponse } from "@/lib/clientNeedApi";
 import { DocumentProvider } from "@/context/DocumentContext";
+import { EmployeeProvider } from "@/context/EmployeeContext";
 
 const STORAGE_KEYS = {
   selectedClientNeedId: "business.selectedClientNeedId",
@@ -65,8 +66,9 @@ export default function BusinessPortal() {
   }, []);
 
   return (
-    <DocumentProvider>
-      <div className="flex h-screen overflow-hidden dark">
+    <EmployeeProvider>
+      <DocumentProvider>
+        <div className="flex h-screen overflow-hidden dark">
         <DarkSidebar
           variant="business"
           userName="Alex Rivera"
@@ -153,7 +155,8 @@ export default function BusinessPortal() {
             {activeTab === "reports" && <BusinessReports agentRuns={agentRuns} />}
           </div>
         </main>
-      </div>
-    </DocumentProvider>
+        </div>
+      </DocumentProvider>
+    </EmployeeProvider>
   );
 }

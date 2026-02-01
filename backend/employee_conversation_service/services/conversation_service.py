@@ -3,7 +3,8 @@ Conversation service for employee profile building via chat.
 """
 
 import logging
-from typing import Optional, List
+import re
+from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timezone, timedelta
 
@@ -53,19 +54,14 @@ class ConversationService:
         """Start a new employee conversation."""
         try:
             conversation_id = uuid4()
-            employee_profile_id: Optional[UUID] = None
-
-            if request.employee_name or request.employee_email:
-                profile_data = EmployeeProfileCreate(
-                    full_name=request.employee_name,
-                    email=request.employee_email,
-                    phone=request.employee_phone,
-                    profile_completeness_score=0,
-                )
-                profile = await self.storage_service.create_employee_profile(
-                    profile_data
-                )
-                employee_profile_id = profile.id
+            profile_data = EmployeeProfileCreate(
+                full_name=request.employee_name,
+                email=request.employee_email,
+                phone=request.employee_phone,
+                profile_completeness_score=0,
+            )
+            profile = await self.storage_service.create_employee_profile(profile_data)
+            employee_profile_id = profile.id
 
             await self.storage_service.create_employee_conversation(
                 conversation_id=conversation_id,
@@ -111,6 +107,18 @@ class ConversationService:
         if not row:
             raise ConversationNotFoundError(str(conversation_id))
 
+        if not row["employee_profile_id"]:
+            profile_data = EmployeeProfileCreate(profile_completeness_score=0)
+            profile = await self.storage_service.create_employee_profile(profile_data)
+            await self.storage_service.update_employee_conversation_status(
+                conversation_id=conversation_id,
+                status="in_progress",
+                employee_profile_id=profile.id,
+            )
+            row = await self.storage_service.get_employee_conversation_by_conversation_id(
+                conversation_id
+            )
+
         await self.storage_service.save_employee_message(
             conversation_id=conversation_id,
             role="user",
@@ -145,6 +153,9 @@ class ConversationService:
 
                 # Extract profile data from conversation
                 extracted_data = await self.extraction_service.extract_from_conversation(message_dicts)
+                explicit_updates = self._extract_explicit_updates(request.message)
+                if explicit_updates:
+                    extracted_data = {**extracted_data, **explicit_updates}
 
                 if extracted_data:
                     # Get current profile
@@ -166,12 +177,13 @@ class ConversationService:
                                 )
                             )
 
+                    merged_data = {**profile.__dict__, **update_data}
+                    profile_completeness = self.extraction_service.calculate_completeness(merged_data)
+                    missing_fields = self.extraction_service.get_missing_fields(merged_data)
+
                     # Update profile if there are changes
                     if update_data:
-                        # Calculate completeness
-                        merged_data = {**profile.__dict__, **update_data}
-                        update_data["profile_completeness_score"] = self.extraction_service.calculate_completeness(merged_data)
-
+                        update_data["profile_completeness_score"] = profile_completeness
                         profile_update = EmployeeProfileUpdate(**update_data)
                         await self.storage_service.update_employee_profile(
                             row["employee_profile_id"],
@@ -183,7 +195,11 @@ class ConversationService:
                         row["employee_profile_id"]
                     )
                     if updated_profile:
-                        profile_completeness = updated_profile.profile_completeness_score or 0
+                        profile_completeness = updated_profile.profile_completeness_score or profile_completeness
+                        if not missing_fields:
+                            missing_fields = self.extraction_service.get_missing_fields(
+                                updated_profile.__dict__
+                            )
 
             except Exception as e:
                 logger.exception(f"Extraction failed: {e}")
@@ -193,6 +209,7 @@ class ConversationService:
                 )
                 if profile:
                     profile_completeness = profile.profile_completeness_score or 0
+                    missing_fields = self.extraction_service.get_missing_fields(profile.__dict__)
 
         return MessageResponse(
             conversation_id=conversation_id,
@@ -205,6 +222,40 @@ class ConversationService:
             can_complete=profile_completeness
             >= getattr(self.settings, "MIN_PROFILE_COMPLETENESS_FOR_COMPLETION", 70),
         )
+
+    def _extract_explicit_updates(self, message: str) -> Dict[str, Any]:
+        updates: Dict[str, Any] = {}
+        text = (message or "").strip()
+        if not text:
+            return updates
+
+        email_match = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", text, re.IGNORECASE)
+        if email_match:
+            updates["email"] = email_match.group(0)
+
+        phone_match = re.search(r"(\+\d[\d\s().-]{6,}\d)", text)
+        if phone_match:
+            updates["phone"] = phone_match.group(1).strip()
+
+        role_match = re.search(
+            r"(?:my\s+)?(?:role|title|position)\s*(?:is|to be|as)\s*([^,.\\n]+)",
+            text,
+            re.IGNORECASE,
+        )
+        if role_match:
+            updates["preferred_roles"] = [role_match.group(1).strip()]
+
+        skills_match = re.search(
+            r"(?:skills|skill set)\s*(?:are|include|:)\s*([^\\n]+)",
+            text,
+            re.IGNORECASE,
+        )
+        if skills_match:
+            skills = [s.strip() for s in skills_match.group(1).split(",") if s.strip()]
+            if skills:
+                updates["skills"] = skills
+
+        return updates
 
     async def get_conversation_status(
         self, conversation_id: UUID

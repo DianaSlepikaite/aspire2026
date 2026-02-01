@@ -17,9 +17,6 @@ from employee_conversation_service.services.document_upload_service import (
 from employee_conversation_service.services.document_parsing_service import (
     DocumentParsingService,
 )
-from employee_conversation_service.services.document_extraction_service import (
-    DocumentExtractionService,
-)
 from employee_conversation_service.services.skill_extraction_service import (
     SkillExtractionService,
 )
@@ -57,8 +54,7 @@ class EmployeeServiceAgent:
     - StorageService: get document/profile, create/update profile, link document
     - DocumentUploadService: receive uploaded document
     - DocumentParsingService: parse document to raw text
-    - DocumentExtractionService: extract structured fields (experience, education, etc.)
-    - SkillExtractionService: extract skills, certifications
+    - SkillExtractionService: extract structured fields, skills, certifications
     - AzureOpenAIService: summary, clarifying questions
     - BlobStorageService (optional): store/retrieve document binary
     - ConversationService (optional): merge conversation transcript
@@ -70,7 +66,6 @@ class EmployeeServiceAgent:
         self.storage_service = StorageService()
         self.document_upload_service = DocumentUploadService()
         self.document_parsing_service = DocumentParsingService()
-        self.document_extraction_service = DocumentExtractionService()
         self.skill_extraction_service = SkillExtractionService()
         self.azure_openai_service = AzureOpenAIService()
         self.blob_storage_service = BlobStorageService()
@@ -83,13 +78,15 @@ class EmployeeServiceAgent:
         file_name: Optional[str] = None,
         mime_type: Optional[str] = None,
         user_query: Optional[str] = None,
+        employee_profile_id: Optional[UUID] = None,
+        conversation_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """
         Process an uploaded document (e.g. resume) through the agent workflow.
 
         1. DocumentUploadService: create document record (optionally BlobStorageService)
         2. DocumentParsingService: parse to raw text
-        3. DocumentExtractionService: extract structured profile fields
+        3. SkillExtractionService: extract structured profile fields
         4. SkillExtractionService: extract skills/certifications
         5. StorageService: create/update employee profile, link document
         6. AzureOpenAIService: generate summary and suggest clarifying questions
@@ -120,6 +117,8 @@ class EmployeeServiceAgent:
                 raw_text = await self.document_parsing_service.parse_content(
                     file_content, mime_type
                 )
+            if raw_text:
+                await self.storage_service.update_document_raw_text(doc.id, raw_text)
             steps.append(
                 {
                     "step": "parse_document",
@@ -128,14 +127,27 @@ class EmployeeServiceAgent:
                 }
             )
 
-            # Step 3: Extract structured profile (DocumentExtractionService)
+            # Step 3: Extract structured profile (SkillExtractionService)
             logger.info("Step 3: Extracting profile from document")
-            (
-                extracted_profile,
-                extract_meta,
-            ) = await self.document_extraction_service.extract_from_text(
-                raw_text or "", file_name
-            )
+            extracted_data: Dict[str, Any] = {}
+            extract_meta = {
+                "completeness_score": 0,
+                "extraction_method": "document_unavailable",
+            }
+            if (raw_text or "").strip():
+                extracted_data = await self.skill_extraction_service.extract_from_conversation(
+                    [{"role": "user", "content": raw_text or ""}]
+                )
+                if not extracted_data:
+                    extracted_data = {
+                        "summary": raw_text[:500] if len(raw_text) > 500 else raw_text
+                    }
+                extract_meta = {
+                    "completeness_score": self.skill_extraction_service.calculate_completeness(
+                        extracted_data
+                    ),
+                    "extraction_method": "document_openai",
+                }
             steps.append(
                 {
                     "step": "extract_profile",
@@ -151,9 +163,8 @@ class EmployeeServiceAgent:
             skills_data = await self.skill_extraction_service.extract_skills_from_text(
                 raw_text or ""
             )
-            profile_data = extracted_profile.model_dump(exclude_none=True)
             profile_data = self.skill_extraction_service.merge_skills_into_profile(
-                profile_data, skills_data
+                extracted_data, skills_data
             )
             steps.append(
                 {
@@ -165,11 +176,142 @@ class EmployeeServiceAgent:
                 }
             )
 
-            # Step 5: Create employee profile (StorageService)
+            # Step 5: Create or update employee profile (StorageService)
             logger.info("Step 5: Saving employee profile")
-            score = extract_meta.get("completeness_score", 0)
+            existing_profile_id = employee_profile_id
+            if not existing_profile_id and conversation_id:
+                convo = await self.storage_service.get_employee_conversation_by_conversation_id(
+                    conversation_id
+                )
+                if convo and convo.get("employee_profile_id"):
+                    existing_profile_id = convo["employee_profile_id"]
+
+            profile = None
+            if existing_profile_id:
+                profile = await self.storage_service.get_employee_profile(
+                    existing_profile_id
+                )
+
+            if not profile:
+                score = extract_meta.get("completeness_score", 0)
+                create_data = EmployeeProfileCreate(
+                    document_id=doc.id,
+                    profile_completeness_score=score,
+                    full_name=profile_data.get("full_name"),
+                    email=profile_data.get("email"),
+                    phone=profile_data.get("phone"),
+                    summary=profile_data.get("summary"),
+                    experience_years=profile_data.get("experience_years"),
+                    skills=profile_data.get("skills"),
+                    certifications=profile_data.get("certifications"),
+                    education=profile_data.get("education"),
+                    experience=profile_data.get("experience"),
+                    preferred_roles=profile_data.get("preferred_roles"),
+                )
+                profile = await self.storage_service.create_employee_profile(create_data)
+                if conversation_id:
+                    await self.storage_service.update_employee_conversation_status(
+                        conversation_id=conversation_id,
+                        status="in_progress",
+                        employee_profile_id=profile.id,
+                    )
+            else:
+                merged_profile = self._merge_profile_data(profile, profile_data)
+                merged_profile["profile_completeness_score"] = (
+                    self.skill_extraction_service.calculate_completeness(merged_profile)
+                )
+                update_data = self._build_profile_update_payload(merged_profile)
+                await self.storage_service.update_employee_profile(
+                    profile.id, EmployeeProfileUpdate(**update_data)
+                )
+                profile = await self.storage_service.get_employee_profile(profile.id)
+
+            await self.storage_service.link_document_to_profile(doc.id, profile.id)
+            steps.append(
+                {
+                    "step": "save_profile",
+                    "action": "Saved employee profile",
+                    "details": {"employee_profile_id": str(profile.id)},
+                }
+            )
+
+            # Step 6: Generate summary (AzureOpenAIService)
+            logger.info("Step 6: Generating summary")
+            summary = await self._generate_summary(
+                profile=profile,
+                completeness_score=profile.profile_completeness_score or 0,
+                missing_fields=[],
+            )
+            logger.info("Employee Service Agent processing completed successfully")
+
+            return {
+                "output": summary,
+                "intermediate_steps": steps,
+                "employee_profile_id": str(profile.id),
+                "document_id": str(doc.id),
+                "completeness_score": profile.profile_completeness_score or 0,
+            }
+        except (DocumentNotFoundError, EmployeeProfileNotFoundError):
+            raise
+        except Exception as e:
+            logger.exception("Employee Service Agent processing failed: %s", e)
+            raise ServiceError(
+                f"Failed to process document: {str(e)}",
+                details={"error": str(e)},
+            )
+
+    async def process_document_by_id(
+        self,
+        document_id: UUID,
+        user_query: Optional[str] = None,
+        employee_profile_id: Optional[UUID] = None,
+        conversation_id: Optional[UUID] = None,
+    ) -> Dict[str, Any]:
+        """
+        Process an existing document (by ID) through extraction and create/update profile.
+        Use when document was already uploaded; agent retrieves, parses, extracts, saves profile.
+        """
+        doc = await self.storage_service.get_document(document_id)
+        if not doc:
+            raise DocumentNotFoundError(str(document_id))
+        # If document has raw_text, use it; else parse
+        raw_text = doc.raw_text
+        if not raw_text:
+            raw_text = await self.document_parsing_service.parse_document(document_id)
+        extracted_data: Dict[str, Any] = {}
+        if (raw_text or "").strip():
+            extracted_data = await self.skill_extraction_service.extract_from_conversation(
+                [{"role": "user", "content": raw_text or ""}]
+            )
+            if not extracted_data:
+                extracted_data = {
+                    "summary": raw_text[:500] if len(raw_text) > 500 else raw_text
+                }
+        skills_data = await self.skill_extraction_service.extract_skills_from_text(
+            raw_text or ""
+        )
+        profile_data = self.skill_extraction_service.merge_skills_into_profile(
+            extracted_data, skills_data
+        )
+
+        existing_profile_id = employee_profile_id
+        if not existing_profile_id and conversation_id:
+            convo = await self.storage_service.get_employee_conversation_by_conversation_id(
+                conversation_id
+            )
+            if convo and convo.get("employee_profile_id"):
+                existing_profile_id = convo["employee_profile_id"]
+
+        profile = None
+        if existing_profile_id:
+            profile = await self.storage_service.get_employee_profile(
+                existing_profile_id
+            )
+
+        if not profile:
+            score = self.skill_extraction_service.calculate_completeness(profile_data)
             create_data = EmployeeProfileCreate(
-                document_id=doc.id,
+                document_id=document_id,
                 profile_completeness_score=score,
                 full_name=profile_data.get("full_name"),
                 email=profile_data.get("email"),
@@ -183,93 +325,27 @@ class EmployeeServiceAgent:
                 preferred_roles=profile_data.get("preferred_roles"),
             )
             profile = await self.storage_service.create_employee_profile(create_data)
-            await self.storage_service.link_document_to_profile(doc.id, profile.id)
+            if conversation_id:
+                await self.storage_service.update_employee_conversation_status(
+                    conversation_id=conversation_id,
+                    status="in_progress",
+                    employee_profile_id=profile.id,
+                )
+        else:
+            merged_profile = self._merge_profile_data(profile, profile_data)
+            merged_profile["profile_completeness_score"] = (
+                self.skill_extraction_service.calculate_completeness(merged_profile)
+            )
+            update_data = self._build_profile_update_payload(merged_profile)
             await self.storage_service.update_employee_profile(
-                profile.id, EmployeeProfileUpdate(**profile_data)
+                profile.id, EmployeeProfileUpdate(**update_data)
             )
-            steps.append(
-                {
-                    "step": "save_profile",
-                    "action": "Created employee profile",
-                    "details": {"employee_profile_id": str(profile.id)},
-                }
-            )
+            profile = await self.storage_service.get_employee_profile(profile.id)
 
-            # Step 6: Generate summary (AzureOpenAIService)
-            logger.info("Step 6: Generating summary")
-            summary = await self._generate_summary(
-                profile=profile,
-                completeness_score=extract_meta.get("completeness_score", 0),
-                missing_fields=[],
-            )
-            logger.info("Employee Service Agent processing completed successfully")
-
-            return {
-                "output": summary,
-                "intermediate_steps": steps,
-                "employee_profile_id": str(profile.id),
-                "document_id": str(doc.id),
-                "completeness_score": extract_meta.get("completeness_score", 0),
-            }
-        except (DocumentNotFoundError, EmployeeProfileNotFoundError):
-            raise
-        except Exception as e:
-            logger.exception("Employee Service Agent processing failed: %s", e)
-            raise ServiceError(
-                f"Failed to process document: {str(e)}",
-                details={"error": str(e)},
-            )
-
-    async def process_document_by_id(
-        self, document_id: UUID, user_query: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Process an existing document (by ID) through extraction and create/update profile.
-        Use when document was already uploaded; agent retrieves, parses, extracts, saves profile.
-        """
-        doc = await self.storage_service.get_document(document_id)
-        if not doc:
-            raise DocumentNotFoundError(str(document_id))
-        # If document has raw_text, use it; else parse
-        raw_text = doc.raw_text
-        if not raw_text:
-            raw_text = await self.document_parsing_service.parse_document(document_id)
-        (
-            extracted_profile,
-            extract_meta,
-        ) = await self.document_extraction_service.extract_from_text(
-            raw_text or "", doc.file_name
-        )
-        skills_data = await self.skill_extraction_service.extract_skills_from_text(
-            raw_text or ""
-        )
-        profile_data = extracted_profile.model_dump(exclude_none=True)
-        profile_data = self.skill_extraction_service.merge_skills_into_profile(
-            profile_data, skills_data
-        )
-        score = extract_meta.get("completeness_score", 0)
-        create_data = EmployeeProfileCreate(
-            document_id=document_id,
-            profile_completeness_score=score,
-            full_name=profile_data.get("full_name"),
-            email=profile_data.get("email"),
-            phone=profile_data.get("phone"),
-            summary=profile_data.get("summary"),
-            experience_years=profile_data.get("experience_years"),
-            skills=profile_data.get("skills"),
-            certifications=profile_data.get("certifications"),
-            education=profile_data.get("education"),
-            experience=profile_data.get("experience"),
-            preferred_roles=profile_data.get("preferred_roles"),
-        )
-        profile = await self.storage_service.create_employee_profile(create_data)
         await self.storage_service.link_document_to_profile(document_id, profile.id)
-        await self.storage_service.update_employee_profile(
-            profile.id, EmployeeProfileUpdate(**profile_data)
-        )
         summary = await self._generate_summary(
             profile=profile,
-            completeness_score=extract_meta.get("completeness_score", 0),
+            completeness_score=profile.profile_completeness_score or 0,
             missing_fields=[],
         )
         return {
@@ -293,8 +369,56 @@ class EmployeeServiceAgent:
             ],
             "employee_profile_id": str(profile.id),
             "document_id": str(document_id),
-            "completeness_score": extract_meta.get("completeness_score", 0),
+            "completeness_score": profile.profile_completeness_score or 0,
         }
+
+    def _merge_profile_data(self, profile: Any, new_data: Dict[str, Any]) -> Dict[str, Any]:
+        base = {
+            "full_name": getattr(profile, "full_name", None),
+            "email": getattr(profile, "email", None),
+            "phone": getattr(profile, "phone", None),
+            "summary": getattr(profile, "summary", None),
+            "experience_years": getattr(profile, "experience_years", None),
+            "skills": getattr(profile, "skills", None),
+            "certifications": getattr(profile, "certifications", None),
+            "education": getattr(profile, "education", None),
+            "experience": getattr(profile, "experience", None),
+            "preferred_roles": getattr(profile, "preferred_roles", None),
+        }
+
+        merged = dict(base)
+        for key, value in (new_data or {}).items():
+            if value is None or value == "":
+                continue
+            if key in ("skills", "certifications", "preferred_roles"):
+                existing = merged.get(key) or []
+                merged[key] = list({*existing, *value})
+            elif key in ("education", "experience"):
+                existing = merged.get(key) or []
+                if isinstance(value, list):
+                    merged[key] = existing + value
+                else:
+                    merged[key] = existing
+            else:
+                merged[key] = value
+        return merged
+
+    def _build_profile_update_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {}
+        for key, value in data.items():
+            if value is None:
+                continue
+            if key in (
+                "skills",
+                "certifications",
+                "preferred_roles",
+                "education",
+                "experience",
+            ):
+                if isinstance(value, list) and len(value) == 0:
+                    continue
+            payload[key] = value
+        return payload
 
     async def _generate_summary(
         self,

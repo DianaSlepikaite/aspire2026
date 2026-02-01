@@ -1,10 +1,17 @@
 import { useRef, useState } from "react";
-import { Download, Eye, File, Upload } from "lucide-react";
+import { Eye, File, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CourseCard } from "@/components/cards/CourseCard";
 import { ProfileCard, SkillAnalysisCard } from "@/components/cards/ProfileCard";
 import { learningRecommendations } from "@/components/layout/learningData";
-import { useDocuments } from "@/context/DocumentContext";
+import {
+  useEmployeeDocuments,
+  useEmployeeProfile,
+  useEmployeeUpload,
+  useEmployeeDocumentDelete,
+} from "@/hooks/useEmployee";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEmployeeContext } from "@/context/EmployeeContext";
 import {
   Dialog,
   DialogContent,
@@ -13,28 +20,25 @@ import {
 } from "@/components/ui/dialog";
 
 export default function Profile() {
-  const { documents, addFiles } = useDocuments();
+  const { employeeProfileId, setEmployeeProfileId, conversationId } = useEmployeeContext();
+  const { data: profile } = useEmployeeProfile(employeeProfileId);
+  const { data: documents = [] } = useEmployeeDocuments(employeeProfileId);
+  const uploadMutation = useEmployeeUpload();
+  const deleteMutation = useEmployeeDocumentDelete();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
   function handleFileAction(doc: (typeof documents)[number]) {
     setSelectedDocId(doc.id);
-    if (doc.file) {
-      const url = URL.createObjectURL(doc.file);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
-    }
+    setPreviewText(doc.raw_text ?? null);
   }
 
   function closePreview() {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setPreviewUrl(null);
+    setPreviewText(null);
     setSelectedDocId(null);
   }
 
@@ -43,6 +47,8 @@ export default function Profile() {
   const startIndex = (safePage - 1) * pageSize;
   const pagedDocuments = documents.slice(startIndex, startIndex + pageSize);
   const selectedDoc = documents.find((doc) => doc.id === selectedDocId) ?? null;
+  const skills = profile?.skills ?? [];
+  const preferredRole = profile?.preferred_roles?.[0] ?? "Role not set";
 
   return (
     <>
@@ -55,11 +61,11 @@ export default function Profile() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <ProfileCard
-            name="Sarah Jenkins"
-            role="Senior Project Manager"
-            department="Staffing Tech Div."
+            name={profile?.full_name ?? "Career Profile"}
+            role={preferredRole}
+            department="Career Track"
             image="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face"
-            skills={["Agile Leadership", "Data Visualization", "Stakeholder Mgmt", "Python", "SQL", "Team Building", "Scrum"]}
+            skills={skills.length > 0 ? skills : ["Add skills to build your profile"]}
             verified
           />
           <SkillAnalysisCard skillName="Python" progress={72} improvement={15} />
@@ -92,7 +98,24 @@ export default function Profile() {
               multiple
               className="hidden"
               onChange={(event) => {
-                addFiles(event.target.files, "profile");
+                const file = event.target.files?.[0];
+                if (!file) return;
+                uploadMutation
+                  .mutateAsync({
+                    file,
+                    employeeProfileId,
+                    conversationId,
+                  })
+                  .then((result) => {
+                    if (result.employee_profile_id) {
+                      setEmployeeProfileId(result.employee_profile_id);
+                      queryClient.invalidateQueries({ queryKey: ["employee-profile", result.employee_profile_id] });
+                      queryClient.invalidateQueries({ queryKey: ["employee-documents", result.employee_profile_id] });
+                    }
+                  })
+                  .catch(() => {
+                    // noop; UI will remain unchanged on failure
+                  });
                 event.currentTarget.value = "";
               }}
             />
@@ -123,25 +146,51 @@ export default function Profile() {
                     <div className="flex items-center gap-3">
                       <File className="size-4 text-muted-foreground" />
                       <div>
-                        <span className="font-medium block truncate max-w-[320px]" title={doc.name}>
-                          {doc.name}
+                        <span className="font-medium block truncate max-w-[320px]" title={doc.file_name ?? ""}>
+                          {doc.file_name ?? "Untitled document"}
                         </span>
-                        {doc.size && (
-                          <p className="text-xs text-muted-foreground mt-1">{doc.size}</p>
-                        )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">{doc.date}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">
+                    {new Date(doc.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "2-digit",
+                      year: "numeric",
+                    })}
+                  </td>
                   <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
                       className="text-muted-foreground hover:text-primary"
                       onClick={() => handleFileAction(doc)}
                     >
-                      {doc.status === "Pending Review" ? <Eye className="size-4" /> : <Download className="size-4" />}
+                      <Eye className="size-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-primary"
+                      onClick={() => {
+                        deleteMutation
+                          .mutateAsync({ documentId: doc.id })
+                          .then(() => {
+                            if (employeeProfileId) {
+                              queryClient.invalidateQueries({
+                                queryKey: ["employee-documents", employeeProfileId],
+                              });
+                            }
+                          })
+                          .catch(() => {
+                            // noop
+                          });
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                    </div>
                   </td>
                 </tr>
               )})}
@@ -175,19 +224,13 @@ export default function Profile() {
       <Dialog open={Boolean(selectedDocId)} onOpenChange={(open) => !open && closePreview()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{selectedDoc?.name ?? "Document Preview"}</DialogTitle>
+            <DialogTitle>{selectedDoc?.file_name ?? "Document Preview"}</DialogTitle>
           </DialogHeader>
-          {previewUrl ? (
-            <iframe
-              title={selectedDoc?.name ?? "Document Preview"}
-              src={previewUrl}
-              className="w-full h-[70vh] rounded-lg border border-border"
-            />
-          ) : (
-            <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground">
-              Preview unavailable. Upload a file to view it here.
-            </div>
-          )}
+          <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground max-h-[70vh] overflow-auto whitespace-pre-wrap">
+            {previewText
+              ? previewText
+              : "Preview unavailable. This document does not have extracted text yet."}
+          </div>
         </DialogContent>
       </Dialog>
     </>

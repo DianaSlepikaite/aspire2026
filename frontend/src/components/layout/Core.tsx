@@ -1,10 +1,18 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useDocuments } from "@/context/DocumentContext";
+import {
+  useEmployeeDocuments,
+  useEmployeeProfile,
+  useEmployeeUpload,
+  useEmployeeProfileUpdate,
+  useEmployeeDocumentDelete,
+} from "@/hooks/useEmployee";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEmployeeContext } from "@/context/EmployeeContext";
 import {
   Dialog,
   DialogContent,
@@ -22,11 +30,12 @@ import {
   Linkedin,
   Mail,
   MapPin,
-  Pencil,
+  Plus,
   Phone,
   RefreshCw,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 
 const coreProfile = {
@@ -81,29 +90,94 @@ const integrations = [
 ];
 
 export default function Core() {
-  const { documents, addFiles, removeDocument } = useDocuments();
+  const { employeeProfileId, setEmployeeProfileId, conversationId } = useEmployeeContext();
+  const { data: profile } = useEmployeeProfile(employeeProfileId);
+  const { data: documents = [] } = useEmployeeDocuments(employeeProfileId);
+  const uploadMutation = useEmployeeUpload();
+  const profileUpdateMutation = useEmployeeProfileUpdate();
+  const documentDeleteMutation = useEmployeeDocumentDelete();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
+  const [skillInput, setSkillInput] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const pageSize = 5;
+
+  const displayProfile = {
+    fullName: profile?.full_name ?? coreProfile.fullName,
+    email: profile?.email ?? coreProfile.email,
+    phone: profile?.phone ?? coreProfile.phone,
+    summary: profile?.summary ?? coreProfile.summary,
+    skills: profile?.skills ?? coreProfile.topSkills,
+    certifications: profile?.certifications ?? coreProfile.certifications,
+    education: profile?.education ?? coreProfile.education,
+    experience: profile?.experience ?? coreProfile.experienceHighlights,
+  };
 
   function handleFileAction(fileItem: (typeof documents)[number]) {
     setSelectedDocId(fileItem.id);
-    if (fileItem.file) {
-      const url = URL.createObjectURL(fileItem.file);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
-    }
+    setPreviewText(fileItem.raw_text ?? null);
   }
 
   function closePreview() {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setPreviewUrl(null);
+    setPreviewText(null);
     setSelectedDocId(null);
+  }
+
+  useEffect(() => {
+    const nextSkills = Array.isArray(displayProfile.skills)
+      ? displayProfile.skills.filter(Boolean)
+      : [];
+    setSkillsDraft(nextSkills);
+  }, [displayProfile.skills]);
+
+  function addSkill() {
+    const value = skillInput.trim();
+    if (!value) return;
+    if (skillsDraft.some((skill) => skill.toLowerCase() === value.toLowerCase())) {
+      setSkillInput("");
+      return;
+    }
+    setSkillsDraft((prev) => [...prev, value]);
+    setSkillInput("");
+  }
+
+  function removeSkill(skill: string) {
+    setSkillsDraft((prev) => prev.filter((item) => item !== skill));
+  }
+
+  async function handleSaveChanges() {
+    if (!employeeProfileId) return;
+    setIsSaving(true);
+    try {
+      await profileUpdateMutation.mutateAsync({
+        profileId: employeeProfileId,
+        payload: {
+          skills: skillsDraft,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["employee-profile", employeeProfileId] });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function formatExperienceItem(item: unknown) {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      const title = String(record.title ?? "").trim();
+      const company = String(record.company ?? "").trim();
+      const years = String(record.years ?? "").trim();
+      const description = String(record.description ?? "").trim();
+      const headerParts = [title, company].filter(Boolean).join(" — ");
+      const metaParts = [years].filter(Boolean).join(" ");
+      return [headerParts, metaParts, description].filter(Boolean).join(" • ");
+    }
+    return "";
   }
 
   const totalPages = Math.max(1, Math.ceil(documents.length / pageSize));
@@ -126,7 +200,9 @@ export default function Core() {
             <RefreshCw className="size-4 mr-2" />
             Sync From Agent
           </Button>
-          <Button className="font-semibold">Save Changes</Button>
+          <Button className="font-semibold" onClick={handleSaveChanges} disabled={isSaving || !employeeProfileId}>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
         </div>
       </div>
 
@@ -139,7 +215,7 @@ export default function Core() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Full Name</label>
-              <Input defaultValue={coreProfile.fullName} />
+              <Input defaultValue={displayProfile.fullName} />
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Location</label>
@@ -152,14 +228,14 @@ export default function Core() {
               <label className="text-xs font-semibold text-muted-foreground uppercase">Email</label>
               <div className="relative">
                 <Mail className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={coreProfile.email} />
+                <Input className="pl-9" defaultValue={displayProfile.email} />
               </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Phone</label>
               <div className="relative">
                 <Phone className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={coreProfile.phone} />
+                <Input className="pl-9" defaultValue={displayProfile.phone} />
               </div>
             </div>
           </div>
@@ -212,7 +288,7 @@ export default function Core() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase">Professional Summary</label>
-            <Textarea defaultValue={coreProfile.summary} className="min-h-[120px]" />
+            <Textarea defaultValue={displayProfile.summary} className="min-h-[120px]" />
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase">Career Goals</label>
@@ -234,21 +310,36 @@ export default function Core() {
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase">Top Skills</label>
             <div className="flex flex-wrap gap-2 mt-2">
-              {coreProfile.topSkills.map((skill) => (
-                <Badge key={skill} variant="outline">
+              {skillsDraft.map((skill) => (
+                <Badge key={skill} variant="outline" className="flex items-center gap-1">
                   {skill}
+                  <button
+                    type="button"
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => removeSkill(skill)}
+                    aria-label={`Remove ${skill}`}
+                  >
+                    <X className="size-3" />
+                  </button>
                 </Badge>
               ))}
-              <Button variant="ghost" size="sm" className="text-muted-foreground">
-                <Pencil className="size-3 mr-2" />
-                Edit Skills
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <Input
+                value={skillInput}
+                onChange={(event) => setSkillInput(event.target.value)}
+                placeholder="Add a skill"
+              />
+              <Button variant="outline" size="sm" className="font-semibold" onClick={addSkill}>
+                <Plus className="size-3 mr-2" />
+                Add
               </Button>
             </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase">Certifications</label>
             <div className="flex flex-wrap gap-2 mt-2">
-              {coreProfile.certifications.map((cert) => (
+              {displayProfile.certifications.map((cert) => (
                 <Badge key={cert} variant="secondary">
                   {cert}
                 </Badge>
@@ -263,11 +354,11 @@ export default function Core() {
             <Badge variant="secondary">Editable</Badge>
           </div>
           <div className="space-y-4">
-            {coreProfile.education.map((item) => (
-              <div key={item.degree} className="rounded-xl border border-border p-4 space-y-1">
-                <p className="font-semibold">{item.school}</p>
-                <p className="text-sm text-muted-foreground">{item.degree}</p>
-                <p className="text-xs text-muted-foreground">{item.year}</p>
+            {displayProfile.education.map((item, idx) => (
+              <div key={idx} className="rounded-xl border border-border p-4 space-y-1">
+                <p className="font-semibold">{String(item.school ?? "Education")}</p>
+                <p className="text-sm text-muted-foreground">{String(item.degree ?? "")}</p>
+                <p className="text-xs text-muted-foreground">{String(item.year ?? "")}</p>
               </div>
             ))}
             <Button variant="outline" className="w-full font-semibold">
@@ -283,10 +374,10 @@ export default function Core() {
           <Badge variant="secondary">Editable</Badge>
         </div>
         <div className="space-y-3">
-          {coreProfile.experienceHighlights.map((item, idx) => (
+          {displayProfile.experience.map((item, idx) => (
             <div key={idx} className="flex items-start gap-3 rounded-xl border border-border p-4">
               <span className="text-xs font-bold text-muted-foreground mt-1">0{idx + 1}</span>
-              <p className="text-sm text-foreground">{item}</p>
+              <p className="text-sm text-foreground">{formatExperienceItem(item)}</p>
             </div>
           ))}
           <Button variant="outline" className="w-full font-semibold">
@@ -305,7 +396,24 @@ export default function Core() {
               multiple
               className="hidden"
               onChange={(event) => {
-                addFiles(event.target.files, "core");
+                const file = event.target.files?.[0];
+                if (!file) return;
+                uploadMutation
+                  .mutateAsync({
+                    file,
+                    employeeProfileId,
+                    conversationId,
+                  })
+                  .then((result) => {
+                    if (result.employee_profile_id) {
+                      setEmployeeProfileId(result.employee_profile_id);
+                      queryClient.invalidateQueries({ queryKey: ["employee-profile", result.employee_profile_id] });
+                      queryClient.invalidateQueries({ queryKey: ["employee-documents", result.employee_profile_id] });
+                    }
+                  })
+                  .catch(() => {
+                    // noop
+                  });
                 event.currentTarget.value = "";
               }}
             />
@@ -332,8 +440,8 @@ export default function Core() {
                     <div className="flex items-center gap-3">
                       <FileText className="size-4 text-muted-foreground" />
                       <div>
-                        <span className="font-medium block truncate max-w-[260px]" title={fileItem.name}>
-                          {fileItem.name}
+                        <span className="font-medium block truncate max-w-[260px]" title={fileItem.file_name ?? ""}>
+                          {fileItem.file_name ?? "Untitled document"}
                         </span>
                         {fileItem.size && (
                           <p className="text-xs text-muted-foreground mt-1">{fileItem.size}</p>
@@ -341,8 +449,14 @@ export default function Core() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">{fileItem.type ?? "Document"}</td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">{fileItem.date}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{fileItem.mime_type ?? "Document"}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">
+                    {new Date(fileItem.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "2-digit",
+                      year: "numeric",
+                    })}
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button
@@ -357,7 +471,20 @@ export default function Core() {
                         variant="ghost"
                         size="icon"
                         className="text-muted-foreground hover:text-primary"
-                        onClick={() => removeDocument(fileItem.id)}
+                        onClick={() => {
+                          documentDeleteMutation
+                            .mutateAsync({ documentId: fileItem.id })
+                            .then(() => {
+                              if (employeeProfileId) {
+                                queryClient.invalidateQueries({
+                                  queryKey: ["employee-documents", employeeProfileId],
+                                });
+                              }
+                            })
+                            .catch(() => {
+                              // noop
+                            });
+                        }}
                       >
                         <Trash2 className="size-4" />
                       </Button>
@@ -429,19 +556,13 @@ export default function Core() {
       <Dialog open={Boolean(selectedDocId)} onOpenChange={(open) => !open && closePreview()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{selectedDoc?.name ?? "Document Preview"}</DialogTitle>
+            <DialogTitle>{selectedDoc?.file_name ?? "Document Preview"}</DialogTitle>
           </DialogHeader>
-          {previewUrl ? (
-            <iframe
-              title={selectedDoc?.name ?? "Document Preview"}
-              src={previewUrl}
-              className="w-full h-[70vh] rounded-lg border border-border"
-            />
-          ) : (
-            <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground">
-              Preview unavailable. Upload a file to view it here.
-            </div>
-          )}
+          <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground max-h-[70vh] overflow-auto whitespace-pre-wrap">
+            {previewText
+              ? previewText
+              : "Preview unavailable. This document does not have extracted text yet."}
+          </div>
         </DialogContent>
       </Dialog>
     </section>

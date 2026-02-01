@@ -9,6 +9,7 @@ from employee_conversation_service.api.v1.endpoints import (
     speech,
     speech_websocket,
     profile,
+    documents,
 )
 
 api_router = APIRouter()
@@ -23,4 +24,7 @@ api_router.include_router(
 )
 api_router.include_router(
     profile.router, prefix="/employee-profiles", tags=["profiles"]
+)
+api_router.include_router(
+    documents.router, prefix="/employee-documents", tags=["documents"]
 )

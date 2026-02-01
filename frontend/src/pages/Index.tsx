@@ -7,13 +7,15 @@ import Core from "@/components/layout/Core";
 import Growth from "@/components/layout/Growth";
 import Matches from "../components/layout/Matches";
 import { DocumentProvider } from "@/context/DocumentContext";
+import { EmployeeProvider } from "@/context/EmployeeContext";
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState<"profile" | "core" | "growth" | "opportunities">("profile");
 
   return (
-    <DocumentProvider>
-      <div className="flex h-screen overflow-hidden dark">
+    <EmployeeProvider>
+      <DocumentProvider>
+        <div className="flex h-screen overflow-hidden dark">
         {/* Left Panel: AI Interaction Hub */}
         <DarkSidebar
           userName="Sarah Jenkins"
@@ -99,7 +101,8 @@ export default function Index() {
           )}
         </div>
         </main>
-      </div>
-    </DocumentProvider>
+        </div>
+      </DocumentProvider>
+    </EmployeeProvider>
   );
 }

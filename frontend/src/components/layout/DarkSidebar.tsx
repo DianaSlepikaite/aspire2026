@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useProcessIntake, useUploadIntakeFile, useUploadIntakeText } from "@/hooks/useClientNeeds";
-import { useDocuments } from "@/context/DocumentContext";
 import {
   AgentResponse,
   extractClientNeedId,
@@ -15,7 +14,13 @@ import {
   startConversation,
   updateClientNeedFromMessage,
 } from "@/lib/clientNeedApi";
+import {
+  processEmployeeUpload,
+  sendEmployeeMessage,
+  startEmployeeConversation,
+} from "@/lib/employeeApi";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEmployeeContext } from "@/context/EmployeeContext";
 import {
   Dialog,
   DialogContent,
@@ -55,12 +60,16 @@ export function DarkSidebar({
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [aiState, setAiState] = useState<"idle" | "listening" | "thinking" | "talking">("idle");
   const [hasConversationStarted, setHasConversationStarted] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
   const [currentClientNeedId, setCurrentClientNeedId] = useState<string | null>(null);
+  const {
+    employeeProfileId,
+    conversationId: employeeConversationId,
+    setEmployeeProfileId,
+    setConversationId: setEmployeeConversationId,
+  } = useEmployeeContext();
   const recognitionRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const careerFileInputRef = useRef<HTMLInputElement | null>(null);
-  const { addFiles } = useDocuments();
   const queryClient = useQueryClient();
 
   const uploadText = useUploadIntakeText();
@@ -95,6 +104,12 @@ export function DarkSidebar({
   }, []);
 
   useEffect(() => {
+    if (!isBusiness && employeeProfileId) {
+      setHasConversationStarted(true);
+    }
+  }, [isBusiness, employeeProfileId]);
+
+  useEffect(() => {
     if (activeClientNeedId) {
       setCurrentClientNeedId(activeClientNeedId);
       setHasConversationStarted(true);
@@ -118,26 +133,45 @@ export function DarkSidebar({
     try {
       if (!isBusiness) {
         try {
-          let activeConversationId = conversationId;
+          let activeConversationId = employeeConversationId;
+          let activeProfileId = employeeProfileId;
           if (!activeConversationId) {
-            const start = await startConversation({
-              client_name: userName,
+            const start = await startEmployeeConversation({
+              employee_name: userName,
               source_channel: "career_portal_chat",
             });
             activeConversationId = start.conversation_id;
-            setConversationId(start.conversation_id);
+            setEmployeeConversationId(start.conversation_id);
+            if (start.employee_profile_id) {
+              setEmployeeProfileId(start.employee_profile_id);
+              activeProfileId = start.employee_profile_id;
+            }
             if (start.greeting_message) {
               setChatMessages((prev) => [...prev, { role: "assistant", content: start.greeting_message }]);
             }
           }
 
-          const response = await sendConversationMessage(activeConversationId, { message, message_type: "text" });
+          const response = await sendEmployeeMessage(activeConversationId, { message, message_type: "text" });
           setChatMessages((prev) => [...prev, { role: "assistant", content: response.assistant_message }]);
+          if (activeProfileId) {
+            queryClient.invalidateQueries({ queryKey: ["employee-profile", activeProfileId] });
+            queryClient.invalidateQueries({ queryKey: ["employee-documents", activeProfileId] });
+          }
           setAiState("talking");
           window.setTimeout(() => setAiState("idle"), 1200);
           return;
         } catch (conversationError) {
-          console.error("Conversation endpoint failed, falling back to intake flow.", conversationError);
+          console.error("Employee conversation failed.", conversationError);
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content:
+                "I couldn’t reach the employee agent service. Please confirm it’s running on port 8001 and try again.",
+            },
+          ]);
+          setAiState("idle");
+          return;
         }
       }
 
@@ -355,8 +389,31 @@ export function DarkSidebar({
 
   function handleCareerFileUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
-    addFiles(files, "chat");
     setHasConversationStarted(true);
+    const file = files[0];
+    setChatMessages((prev) => [...prev, { role: "user", content: `Uploaded file: ${file.name}` }]);
+    processEmployeeUpload({
+      file,
+      employeeProfileId,
+      conversationId: employeeConversationId,
+    })
+      .then((result) => {
+        if (result.employee_profile_id) {
+          setEmployeeProfileId(result.employee_profile_id);
+          queryClient.invalidateQueries({ queryKey: ["employee-profile", result.employee_profile_id] });
+          queryClient.invalidateQueries({ queryKey: ["employee-documents", result.employee_profile_id] });
+        }
+        if (result.output) {
+          setChatMessages((prev) => [...prev, { role: "assistant", content: result.output }]);
+        }
+      })
+      .catch((error) => {
+        console.error("Employee upload failed.", error);
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Failed to process your document. Please try again." },
+        ]);
+      });
   }
   return (
     <aside className="w-1/2 min-w-[400px] h-full bg-background flex flex-col border-r border-border p-8">

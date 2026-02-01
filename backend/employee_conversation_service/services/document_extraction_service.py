@@ -28,8 +28,6 @@ class DocumentExtractionService:
                 {"completeness_score": 0, "extraction_method": "document"},
             )
         # Stub: real impl would call Azure OpenAI or similar to extract name, experience, education, etc.
-        from employee_conversation_service.models.schemas import EmployeeProfileUpdate
-
         update = EmployeeProfileUpdate(
             summary=text[:500] if len(text) > 500 else text,
             profile_completeness_score=20,
