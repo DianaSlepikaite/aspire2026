@@ -5,7 +5,7 @@ Conversation service for orchestrating employee profile conversations.
 import logging
 from typing import Optional, Dict, Any, List
 from uuid import UUID, uuid4
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from employee_conversation_service.config import get_settings
 from employee_conversation_service.core.exceptions import (
@@ -309,7 +309,7 @@ class ConversationService:
         # Reset timeout by updating conversation_started_at
         await self.storage_service.update_employee_profile(
             employee_profile.id,
-            EmployeeProfileUpdate(conversation_started_at=datetime.utcnow())
+            EmployeeProfileUpdate(conversation_started_at=datetime.now(timezone.utc))
         )
 
         # Fetch recent messages for context
@@ -356,7 +356,7 @@ class ConversationService:
             profile.id,
             EmployeeProfileUpdate(
                 conversation_status=ConversationStatus.ABANDONED,
-                conversation_completed_at=datetime.utcnow()
+                conversation_completed_at=datetime.now(timezone.utc)
             )
         )
 
@@ -656,7 +656,7 @@ class ConversationService:
                 raise ConversationNotFoundError(str(conversation_id))
 
             # Calculate duration
-            duration = datetime.utcnow() - employee_profile.conversation_started_at
+            duration = datetime.now(timezone.utc) - employee_profile.conversation_started_at
             duration_minutes = int(duration.total_seconds() / 60)
 
             # Get missing fields
@@ -739,7 +739,7 @@ class ConversationService:
                 EmployeeProfileUpdate(
                     conversation_status=ConversationStatus.COMPLETED,
                     professional_summary=summary,
-                    conversation_completed_at=datetime.utcnow()
+                    conversation_completed_at=datetime.now(timezone.utc)
                 )
             )
 
@@ -803,7 +803,7 @@ class ConversationService:
     async def _check_timeout(self, employee_profile):
         """Check if conversation has timed out."""
         timeout_delta = timedelta(minutes=self.settings.CONVERSATION_TIMEOUT_MINUTES)
-        elapsed = datetime.utcnow() - employee_profile.conversation_started_at
+        elapsed = datetime.now(timezone.utc) - employee_profile.conversation_started_at
 
         if elapsed > timeout_delta:
             raise ConversationTimeoutError(
