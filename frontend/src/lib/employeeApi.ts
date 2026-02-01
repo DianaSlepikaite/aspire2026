@@ -12,6 +12,8 @@ export interface EmployeeProfile {
   experience?: Array<Record<string, unknown>> | null;
   preferred_roles?: string[] | null;
   profile_completeness_score?: number | null;
+  tags?: Record<string, unknown> | null;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +39,7 @@ export interface EmployeeConversationStartResponse {
 export interface EmployeeMessageResponse {
   conversation_id: string;
   message_id: string;
+  employee_profile_id?: string | null;
   assistant_message: string;
   audio_url?: string | null;
   profile_completeness: number;

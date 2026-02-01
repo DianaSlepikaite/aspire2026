@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,12 @@ const coreProfile = {
   ],
 };
 
+type EducationItem = {
+  school: string;
+  degree: string;
+  year: string;
+};
+
 const integrations = [
   {
     name: "LinkedIn",
@@ -101,10 +107,36 @@ export default function Core() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [educationPage, setEducationPage] = useState(1);
+  const [experiencePage, setExperiencePage] = useState(1);
   const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
+  const [certificationsDraft, setCertificationsDraft] = useState<string[]>([]);
+  const [educationDraft, setEducationDraft] = useState<EducationItem[]>([]);
+  const [experienceDraft, setExperienceDraft] = useState<string[]>([]);
+  const [fullNameDraft, setFullNameDraft] = useState("");
+  const [emailDraft, setEmailDraft] = useState("");
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [summaryDraft, setSummaryDraft] = useState("");
+  const [titleDraft, setTitleDraft] = useState("");
+  const [departmentDraft, setDepartmentDraft] = useState("");
+  const [managerDraft, setManagerDraft] = useState("");
+  const [locationDraft, setLocationDraft] = useState("");
+  const [startDateDraft, setStartDateDraft] = useState("");
+  const [employmentTypeDraft, setEmploymentTypeDraft] = useState("");
+  const [strengthsDraft, setStrengthsDraft] = useState("");
+  const [goalsDraft, setGoalsDraft] = useState("");
   const [skillInput, setSkillInput] = useState("");
+  const [certInput, setCertInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
   const pageSize = 5;
+  const listPageSize = 5;
+
+  const coreTags = useMemo(() => {
+    const tags = profile?.tags ?? {};
+    const coreTag = (tags as Record<string, unknown>)?.core_profile;
+    return (coreTag && typeof coreTag === "object" ? (coreTag as Record<string, unknown>) : {}) as Record<string, unknown>;
+  }, [profile?.tags]);
 
   const displayProfile = {
     fullName: profile?.full_name ?? coreProfile.fullName,
@@ -115,6 +147,14 @@ export default function Core() {
     certifications: profile?.certifications ?? coreProfile.certifications,
     education: profile?.education ?? coreProfile.education,
     experience: profile?.experience ?? coreProfile.experienceHighlights,
+    title: (coreTags.title as string | undefined) ?? coreProfile.title,
+    department: (coreTags.department as string | undefined) ?? coreProfile.department,
+    manager: (coreTags.manager as string | undefined) ?? coreProfile.manager,
+    location: (coreTags.location as string | undefined) ?? coreProfile.location,
+    startDate: (coreTags.startDate as string | undefined) ?? coreProfile.startDate,
+    employmentType: (coreTags.employmentType as string | undefined) ?? coreProfile.employmentType,
+    strengths: (coreTags.strengths as string | undefined) ?? coreProfile.strengths,
+    goals: (coreTags.goals as string | undefined) ?? coreProfile.goals,
   };
 
   function handleFileAction(fileItem: (typeof documents)[number]) {
@@ -132,7 +172,54 @@ export default function Core() {
       ? displayProfile.skills.filter(Boolean)
       : [];
     setSkillsDraft(nextSkills);
-  }, [displayProfile.skills]);
+    const nextCerts = Array.isArray(displayProfile.certifications)
+      ? displayProfile.certifications.filter(Boolean)
+      : [];
+    setCertificationsDraft(nextCerts);
+    const nextEdu = Array.isArray(displayProfile.education)
+      ? displayProfile.education.map((item) => ({
+          school: String((item as any)?.school ?? ""),
+          degree: String((item as any)?.degree ?? ""),
+          year: String((item as any)?.year ?? ""),
+        }))
+      : [];
+    setEducationDraft(nextEdu);
+    const nextExperience = Array.isArray(displayProfile.experience)
+      ? displayProfile.experience.map((item) =>
+          typeof item === "string" ? item : formatExperienceItem(item)
+        )
+      : [];
+    setExperienceDraft(nextExperience);
+    setFullNameDraft(displayProfile.fullName ?? "");
+    setEmailDraft(displayProfile.email ?? "");
+    setPhoneDraft(displayProfile.phone ?? "");
+    setSummaryDraft(displayProfile.summary ?? "");
+    setTitleDraft(displayProfile.title ?? "");
+    setDepartmentDraft(displayProfile.department ?? "");
+    setManagerDraft(displayProfile.manager ?? "");
+    setLocationDraft(displayProfile.location ?? "");
+    setStartDateDraft(displayProfile.startDate ?? "");
+    setEmploymentTypeDraft(displayProfile.employmentType ?? "");
+    setStrengthsDraft(displayProfile.strengths ?? "");
+    setGoalsDraft(displayProfile.goals ?? "");
+  }, [
+    displayProfile.skills,
+    displayProfile.certifications,
+    displayProfile.education,
+    displayProfile.experience,
+    displayProfile.fullName,
+    displayProfile.email,
+    displayProfile.phone,
+    displayProfile.summary,
+    displayProfile.title,
+    displayProfile.department,
+    displayProfile.manager,
+    displayProfile.location,
+    displayProfile.startDate,
+    displayProfile.employmentType,
+    displayProfile.strengths,
+    displayProfile.goals,
+  ]);
 
   function addSkill() {
     const value = skillInput.trim();
@@ -149,14 +236,85 @@ export default function Core() {
     setSkillsDraft((prev) => prev.filter((item) => item !== skill));
   }
 
+  function addCertification() {
+    const value = certInput.trim();
+    if (!value) return;
+    if (certificationsDraft.some((cert) => cert.toLowerCase() === value.toLowerCase())) {
+      setCertInput("");
+      return;
+    }
+    setCertificationsDraft((prev) => [...prev, value]);
+    setCertInput("");
+  }
+
+  function removeCertification(cert: string) {
+    setCertificationsDraft((prev) => prev.filter((item) => item !== cert));
+  }
+
+  function updateEducationItem(index: number, field: keyof EducationItem, value: string) {
+    setEducationDraft((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
+    );
+  }
+
+  function addEducationItem() {
+    setEducationDraft((prev) => [...prev, { school: "", degree: "", year: "" }]);
+    setEducationPage((prev) => Math.max(prev, Math.ceil((educationDraft.length + 1) / listPageSize)));
+  }
+
+  function removeEducationItem(index: number) {
+    setEducationDraft((prev) => prev.filter((_, idx) => idx !== index));
+    setEducationPage((prev) => Math.max(1, Math.min(prev, Math.ceil((educationDraft.length - 1) / listPageSize))));
+  }
+
+  function updateExperienceItem(index: number, value: string) {
+    setExperienceDraft((prev) => prev.map((item, idx) => (idx === index ? value : item)));
+  }
+
+  function addExperienceItem() {
+    setExperienceDraft((prev) => [...prev, ""]);
+    setExperiencePage((prev) => Math.max(prev, Math.ceil((experienceDraft.length + 1) / listPageSize)));
+  }
+
+  function removeExperienceItem(index: number) {
+    setExperienceDraft((prev) => prev.filter((_, idx) => idx !== index));
+    setExperiencePage((prev) => Math.max(1, Math.min(prev, Math.ceil((experienceDraft.length - 1) / listPageSize))));
+  }
+
   async function handleSaveChanges() {
     if (!employeeProfileId) return;
     setIsSaving(true);
     try {
+      const existingTags = (profile?.tags && typeof profile.tags === "object")
+        ? (profile.tags as Record<string, unknown>)
+        : {};
+      const updatedTags = {
+        ...existingTags,
+        core_profile: {
+          title: titleDraft,
+          department: departmentDraft,
+          manager: managerDraft,
+          location: locationDraft,
+          startDate: startDateDraft,
+          employmentType: employmentTypeDraft,
+          strengths: strengthsDraft,
+          goals: goalsDraft,
+        },
+      };
       await profileUpdateMutation.mutateAsync({
         profileId: employeeProfileId,
         payload: {
+          full_name: fullNameDraft || null,
+          email: emailDraft || null,
+          phone: phoneDraft || null,
+          summary: summaryDraft || null,
           skills: skillsDraft,
+          certifications: certificationsDraft,
+          education: educationDraft.filter((item) => item.school || item.degree || item.year),
+          experience: experienceDraft
+            .filter(Boolean)
+            .map((item) => ({ description: item })),
+          tags: updatedTags,
         },
       });
       queryClient.invalidateQueries({ queryKey: ["employee-profile", employeeProfileId] });
@@ -180,11 +338,98 @@ export default function Core() {
     return "";
   }
 
+  function renderEditableText(opts: {
+    field: string;
+    value: string;
+    placeholder?: string;
+    onChange: (value: string) => void;
+    className?: string;
+    displayClassName?: string;
+  }) {
+    const { field, value, placeholder, onChange, className, displayClassName } = opts;
+    if (editingField === field) {
+      return (
+        <Input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={() => setEditingField(null)}
+          autoFocus
+          className={className}
+        />
+      );
+    }
+    return (
+      <div
+        className={`min-h-[40px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate ${
+          displayClassName ?? ""
+        }`}
+        onClick={() => setEditingField(field)}
+        title={value}
+      >
+        {value || <span className="text-muted-foreground">{placeholder ?? "Click to edit"}</span>}
+      </div>
+    );
+  }
+
+  function renderEditableTextarea(opts: {
+    field: string;
+    value: string;
+    placeholder?: string;
+    onChange: (value: string) => void;
+    className?: string;
+    displayClassName?: string;
+  }) {
+    const { field, value, placeholder, onChange, className, displayClassName } = opts;
+    if (editingField === field) {
+      return (
+        <Textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={() => setEditingField(null)}
+          autoFocus
+          className={className}
+        />
+      );
+    }
+    return (
+      <div
+        className={`min-h-[120px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors whitespace-pre-wrap ${
+          displayClassName ?? ""
+        }`}
+        onClick={() => setEditingField(field)}
+        title={value}
+      >
+        {value || <span className="text-muted-foreground">{placeholder ?? "Click to edit"}</span>}
+      </div>
+    );
+  }
+
+  const lastSyncLabel = useMemo(() => {
+    if (!profile?.updated_at) return "Last sync: --";
+    const date = new Date(profile.updated_at);
+    if (Number.isNaN(date.getTime())) return "Last sync: --";
+    return `Last sync: ${date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    })}`;
+  }, [profile?.updated_at]);
+
   const totalPages = Math.max(1, Math.ceil(documents.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const startIndex = (safePage - 1) * pageSize;
   const pagedDocuments = documents.slice(startIndex, startIndex + pageSize);
   const selectedDoc = documents.find((doc) => doc.id === selectedDocId) ?? null;
+
+  const educationTotalPages = Math.max(1, Math.ceil(educationDraft.length / listPageSize));
+  const safeEducationPage = Math.min(educationPage, educationTotalPages);
+  const educationStart = (safeEducationPage - 1) * listPageSize;
+  const pagedEducation = educationDraft.slice(educationStart, educationStart + listPageSize);
+
+  const experienceTotalPages = Math.max(1, Math.ceil(experienceDraft.length / listPageSize));
+  const safeExperiencePage = Math.min(experiencePage, experienceTotalPages);
+  const experienceStart = (safeExperiencePage - 1) * listPageSize;
+  const pagedExperience = experienceDraft.slice(experienceStart, experienceStart + listPageSize);
 
   return (
     <section className="space-y-8">
@@ -192,11 +437,19 @@ export default function Core() {
         <div>
           <h3 className="text-2xl font-bold">Core Employee Profile</h3>
           <p className="text-muted-foreground mt-1">
-            Synced from agent insights and enriched by your edits. Last sync: Jan 12, 2024.
+            Synced from agent insights and enriched by your edits. {lastSyncLabel}.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" className="font-semibold">
+          <Button
+            variant="secondary"
+            className="font-semibold"
+            onClick={() => {
+              if (employeeProfileId) {
+                queryClient.invalidateQueries({ queryKey: ["employee-profile", employeeProfileId] });
+              }
+            }}
+          >
             <RefreshCw className="size-4 mr-2" />
             Sync From Agent
           </Button>
@@ -215,27 +468,81 @@ export default function Core() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Full Name</label>
-              <Input defaultValue={displayProfile.fullName} />
+                {renderEditableText({
+                  field: "full_name",
+                  value: fullNameDraft,
+                  placeholder: "Full name",
+                  onChange: setFullNameDraft,
+                  displayClassName: "max-w-full",
+                })}
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Location</label>
               <div className="relative">
                 <MapPin className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={coreProfile.location} />
+                {editingField === "location" ? (
+                  <Input
+                    className="pl-9"
+                    value={locationDraft}
+                    onChange={(event) => setLocationDraft(event.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                    onClick={() => setEditingField("location")}
+                    title={locationDraft}
+                  >
+                    {locationDraft || <span className="text-muted-foreground">Location</span>}
+                  </div>
+                )}
               </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Email</label>
               <div className="relative">
                 <Mail className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={displayProfile.email} />
+                {editingField === "email" ? (
+                  <Input
+                    className="pl-9"
+                    value={emailDraft}
+                    onChange={(event) => setEmailDraft(event.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                    onClick={() => setEditingField("email")}
+                    title={emailDraft}
+                  >
+                    {emailDraft || <span className="text-muted-foreground">Email</span>}
+                  </div>
+                )}
               </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Phone</label>
               <div className="relative">
                 <Phone className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={displayProfile.phone} />
+                {editingField === "phone" ? (
+                  <Input
+                    className="pl-9"
+                    value={phoneDraft}
+                    onChange={(event) => setPhoneDraft(event.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                    onClick={() => setEditingField("phone")}
+                    title={phoneDraft}
+                  >
+                    {phoneDraft || <span className="text-muted-foreground">Phone</span>}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -251,30 +558,88 @@ export default function Core() {
               <label className="text-xs font-semibold text-muted-foreground uppercase">Title</label>
               <div className="relative">
                 <Briefcase className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={coreProfile.title} />
+                {editingField === "title" ? (
+                  <Input
+                    className="pl-9"
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                    onClick={() => setEditingField("title")}
+                    title={titleDraft}
+                  >
+                    {titleDraft || <span className="text-muted-foreground">Title</span>}
+                  </div>
+                )}
               </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Department</label>
               <div className="relative">
                 <Building2 className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={coreProfile.department} />
+                {editingField === "department" ? (
+                  <Input
+                    className="pl-9"
+                    value={departmentDraft}
+                    onChange={(event) => setDepartmentDraft(event.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                    onClick={() => setEditingField("department")}
+                    title={departmentDraft}
+                  >
+                    {departmentDraft || <span className="text-muted-foreground">Department</span>}
+                  </div>
+                )}
               </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Manager</label>
-              <Input defaultValue={coreProfile.manager} />
+            {renderEditableText({
+              field: "manager",
+              value: managerDraft,
+              placeholder: "Manager",
+              onChange: setManagerDraft,
+            })}
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase">Start Date</label>
               <div className="relative">
                 <Calendar className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input className="pl-9" defaultValue={coreProfile.startDate} />
+                {editingField === "startDate" ? (
+                  <Input
+                    className="pl-9"
+                    value={startDateDraft}
+                    onChange={(event) => setStartDateDraft(event.target.value)}
+                    onBlur={() => setEditingField(null)}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                    onClick={() => setEditingField("startDate")}
+                    title={startDateDraft}
+                  >
+                    {startDateDraft || <span className="text-muted-foreground">Start date</span>}
+                  </div>
+                )}
               </div>
             </div>
             <div className="md:col-span-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase">Employment Type</label>
-              <Input defaultValue={coreProfile.employmentType} />
+              {renderEditableText({
+                field: "employmentType",
+                value: employmentTypeDraft,
+                placeholder: "Employment type",
+                onChange: setEmploymentTypeDraft,
+              })}
             </div>
           </div>
         </div>
@@ -288,16 +653,34 @@ export default function Core() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase">Professional Summary</label>
-            <Textarea defaultValue={displayProfile.summary} className="min-h-[120px]" />
+            {renderEditableTextarea({
+              field: "summary",
+              value: summaryDraft,
+              placeholder: "Professional summary",
+              onChange: setSummaryDraft,
+              className: "min-h-[120px]",
+            })}
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase">Career Goals</label>
-            <Textarea defaultValue={coreProfile.goals} className="min-h-[120px]" />
+            {renderEditableTextarea({
+              field: "goals",
+              value: goalsDraft,
+              placeholder: "Career goals",
+              onChange: setGoalsDraft,
+              className: "min-h-[120px]",
+            })}
           </div>
         </div>
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase">Core Strengths</label>
-          <Textarea defaultValue={coreProfile.strengths} className="min-h-[90px]" />
+          {renderEditableTextarea({
+            field: "strengths",
+            value: strengthsDraft,
+            placeholder: "Core strengths",
+            onChange: setStrengthsDraft,
+            className: "min-h-[90px]",
+          })}
         </div>
       </div>
 
@@ -339,11 +722,30 @@ export default function Core() {
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase">Certifications</label>
             <div className="flex flex-wrap gap-2 mt-2">
-              {displayProfile.certifications.map((cert) => (
-                <Badge key={cert} variant="secondary">
+              {certificationsDraft.map((cert) => (
+                <Badge key={cert} variant="secondary" className="flex items-center gap-1">
                   {cert}
+                  <button
+                    type="button"
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => removeCertification(cert)}
+                    aria-label={`Remove ${cert}`}
+                  >
+                    <X className="size-3" />
+                  </button>
                 </Badge>
               ))}
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <Input
+                value={certInput}
+                onChange={(event) => setCertInput(event.target.value)}
+                placeholder="Add a certification"
+              />
+              <Button variant="outline" size="sm" className="font-semibold" onClick={addCertification}>
+                <Plus className="size-3 mr-2" />
+                Add
+              </Button>
             </div>
           </div>
         </div>
@@ -354,16 +756,77 @@ export default function Core() {
             <Badge variant="secondary">Editable</Badge>
           </div>
           <div className="space-y-4">
-            {displayProfile.education.map((item, idx) => (
-              <div key={idx} className="rounded-xl border border-border p-4 space-y-1">
-                <p className="font-semibold">{String(item.school ?? "Education")}</p>
-                <p className="text-sm text-muted-foreground">{String(item.degree ?? "")}</p>
-                <p className="text-xs text-muted-foreground">{String(item.year ?? "")}</p>
-              </div>
-            ))}
-            <Button variant="outline" className="w-full font-semibold">
+            {pagedEducation.map((item, localIdx) => {
+              const idx = educationStart + localIdx;
+              const key = `education-${idx}`;
+              const label = [item.degree, item.school, item.year].filter(Boolean).join(" • ");
+              return (
+                <div key={key} className="rounded-xl border border-border p-4 space-y-2">
+                  {editingField === key ? (
+                    <>
+                      <Input
+                        placeholder="School"
+                        value={item.school}
+                        onChange={(event) => updateEducationItem(idx, "school", event.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        autoFocus
+                      />
+                      <Input
+                        placeholder="Degree"
+                        value={item.degree}
+                        onChange={(event) => updateEducationItem(idx, "degree", event.target.value)}
+                      />
+                      <Input
+                        placeholder="Year"
+                        value={item.year}
+                        onChange={(event) => updateEducationItem(idx, "year", event.target.value)}
+                      />
+                      <div className="flex justify-between">
+                        <Button variant="ghost" size="sm" onClick={() => removeEducationItem(idx)}>
+                          Remove
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditingField(null)}>
+                          Done
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className="min-h-[64px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
+                      onClick={() => setEditingField(key)}
+                    >
+                      {label || <span className="text-muted-foreground">Click to add education</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <Button variant="outline" className="w-full font-semibold" onClick={addEducationItem}>
               Add Education
             </Button>
+            {educationTotalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="link"
+                  className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                  onClick={() => setEducationPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safeEducationPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {safeEducationPage} of {educationTotalPages}
+                </span>
+                <Button
+                  variant="link"
+                  className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                  onClick={() => setEducationPage((prev) => Math.min(educationTotalPages, prev + 1))}
+                  disabled={safeEducationPage === educationTotalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -374,15 +837,69 @@ export default function Core() {
           <Badge variant="secondary">Editable</Badge>
         </div>
         <div className="space-y-3">
-          {displayProfile.experience.map((item, idx) => (
-            <div key={idx} className="flex items-start gap-3 rounded-xl border border-border p-4">
-              <span className="text-xs font-bold text-muted-foreground mt-1">0{idx + 1}</span>
-              <p className="text-sm text-foreground">{formatExperienceItem(item)}</p>
-            </div>
-          ))}
-          <Button variant="outline" className="w-full font-semibold">
+          {pagedExperience.map((item, localIdx) => {
+            const idx = experienceStart + localIdx;
+            const key = `experience-${idx}`;
+            return (
+              <div key={key} className="flex items-start gap-3 rounded-xl border border-border p-4">
+                <span className="text-xs font-bold text-muted-foreground mt-1">0{idx + 1}</span>
+                <div className="flex-1 space-y-2">
+                  {editingField === key ? (
+                    <>
+                      <Textarea
+                        value={item}
+                        onChange={(event) => updateExperienceItem(idx, event.target.value)}
+                        className="min-h-[90px]"
+                        onBlur={() => setEditingField(null)}
+                        autoFocus
+                      />
+                      <div className="flex justify-between">
+                        <Button variant="ghost" size="sm" onClick={() => removeExperienceItem(idx)}>
+                          Remove
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditingField(null)}>
+                          Done
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className="min-h-[90px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
+                      onClick={() => setEditingField(key)}
+                    >
+                      {item || <span className="text-muted-foreground">Click to add highlight</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <Button variant="outline" className="w-full font-semibold" onClick={addExperienceItem}>
             Add Highlight
           </Button>
+          {experienceTotalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <Button
+                variant="link"
+                className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                onClick={() => setExperiencePage((prev) => Math.max(1, prev - 1))}
+                disabled={safeExperiencePage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Page {safeExperiencePage} of {experienceTotalPages}
+              </span>
+              <Button
+                variant="link"
+                className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                onClick={() => setExperiencePage((prev) => Math.min(experienceTotalPages, prev + 1))}
+                disabled={safeExperiencePage === experienceTotalPages}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -427,10 +944,10 @@ export default function Core() {
           <table className="w-full text-left table-fixed">
             <thead className="bg-secondary/50 border-b border-border">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-2/5">Document Name</th>
-                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/5">Type</th>
-                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/5">Updated</th>
-                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase text-right w-1/5">Action</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/2">Document Name</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/6">Type</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/6">Updated</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase text-right w-1/6">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -449,7 +966,11 @@ export default function Core() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">{fileItem.mime_type ?? "Document"}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">
+                    <span className="block truncate max-w-[140px]" title={fileItem.mime_type ?? ""}>
+                      {fileItem.mime_type ?? "Document"}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 text-sm text-muted-foreground">
                     {new Date(fileItem.created_at).toLocaleDateString("en-US", {
                       month: "short",

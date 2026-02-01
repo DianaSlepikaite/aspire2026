@@ -127,6 +127,23 @@ async def get_client_need(id: UUID):
                 detail={"error": f"Client need not found: {id}"}
             )
 
+        # Ensure completeness/missing info are up to date for detail view
+        extraction_service = NeedExtractionService()
+        profile_dict = client_need.model_dump(exclude_none=True)
+        completeness = extraction_service.calculate_completeness_score(profile_dict)
+        missing_fields = extraction_service.identify_missing_fields(profile_dict)
+        if (
+            completeness != client_need.profile_completeness_score
+            or (missing_fields and missing_fields != (client_need.missing_information or []))
+        ):
+            client_need = await storage_service.update_client_need(
+                client_need.id,
+                ClientNeedUpdate(
+                    profile_completeness_score=completeness,
+                    missing_information=missing_fields
+                )
+            )
+
         return client_need
 
     except HTTPException:
@@ -258,7 +275,26 @@ async def update_client_need_from_message(
             client_email=client_need.client_email
         )
 
-        updated_client_need = await storage_service.update_client_need(id, update)
+        update_dict = update.model_dump(exclude_none=True)
+
+        def is_empty_value(value: object) -> bool:
+            if value is None:
+                return True
+            if isinstance(value, str) and not value.strip():
+                return True
+            if isinstance(value, (list, dict)) and len(value) == 0:
+                return True
+            return False
+
+        update_dict = {key: value for key, value in update_dict.items() if not is_empty_value(value)}
+
+        if update_dict:
+            updated_client_need = await storage_service.update_client_need(
+                id,
+                ClientNeedUpdate(**update_dict)
+            )
+        else:
+            updated_client_need = client_need
 
         profile_dict = updated_client_need.model_dump(exclude_none=True)
         completeness = extraction_service.calculate_completeness_score(profile_dict)

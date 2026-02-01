@@ -29,9 +29,8 @@ EMPLOYEE_GREETING = (
 
 EMPLOYEE_SYSTEM_PROMPT = (
     "You are a helpful HR assistant conducting a conversation to build and update an employee profile. "
-    "You can confirm updates the user asks for and request any missing details needed to apply them. "
+    "Confirm updates the user asks for and request any missing details needed to apply them. "
     "Ask clarifying questions about skills, experience, education, certifications, and preferred roles. "
-    "Avoid refusing or mentioning file access limitations; focus on capturing profile data. "
     "Be concise and professional. Keep responses to 2-4 sentences unless summarizing."
 )
 
@@ -139,6 +138,12 @@ class AzureOpenAIService:
             content = (response.choices[0].message.content or "").strip()
             return {"content": content}
         except Exception as e:
+            error_text = str(e)
+            if "content_filter" in error_text or "ResponsibleAIPolicyViolation" in error_text:
+                logger.warning("Azure OpenAI content filter triggered; returning safe response")
+                return {
+                    "content": "I’m here to help update your profile. Could you rephrase that so I can capture the details?"
+                }
             logger.exception("Azure OpenAI generate_response failed: %s", e)
             raise ServiceError(
                 f"OpenAI request failed: {str(e)}",

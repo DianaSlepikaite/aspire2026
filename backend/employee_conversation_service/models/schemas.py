@@ -38,6 +38,8 @@ class EmployeeProfileBase(BaseModel):
     experience: Optional[List[Dict[str, Any]]] = None
     preferred_roles: Optional[List[str]] = None
     profile_completeness_score: int = Field(default=0, ge=0, le=100)
+    tags: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
 
 
 class EmployeeProfileCreate(EmployeeProfileBase):
@@ -133,6 +135,7 @@ class MessageResponse(BaseModel):
 
     conversation_id: UUID
     message_id: UUID
+    employee_profile_id: Optional[UUID] = None
     assistant_message: str
     audio_url: Optional[str] = None
     extraction_updates: Optional[List[ExtractionUpdate]] = None

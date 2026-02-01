@@ -59,6 +59,7 @@ def _profile_from_row(row: asyncpg.Record) -> EmployeeProfile:
         "education",
         "experience",
         "preferred_roles",
+        "tags",
     ):
         if key in data and isinstance(data[key], str):
             try:
@@ -154,6 +155,7 @@ class StorageService:
                 SELECT id, document_id, full_name, email, phone, summary,
                        experience_years, skills, certifications, education,
                        experience, preferred_roles, profile_completeness_score,
+                       tags, notes,
                        created_at, updated_at
                 FROM employee_profiles WHERE id = $1
                 """,
@@ -222,8 +224,8 @@ class StorageService:
                 INSERT INTO employee_profiles
                 (id, document_id, full_name, email, phone, summary, experience_years,
                  skills, certifications, education, experience, preferred_roles,
-                 profile_completeness_score, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                 profile_completeness_score, tags, notes, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
                 """,
                 profile_id,
                 data.document_id,
@@ -238,6 +240,8 @@ class StorageService:
                 _serialize_jsonb(data.experience),
                 _serialize_jsonb(data.preferred_roles),
                 data.profile_completeness_score or 0,
+                _serialize_jsonb(data.tags),
+                data.notes,
                 now,
                 now,
             )
@@ -256,6 +260,8 @@ class StorageService:
             experience=data.experience,
             preferred_roles=data.preferred_roles,
             profile_completeness_score=data.profile_completeness_score or 0,
+            tags=data.tags,
+            notes=data.notes,
             created_at=now,
             updated_at=now,
         )
@@ -281,6 +287,7 @@ class StorageService:
                 "education",
                 "experience",
                 "preferred_roles",
+                "tags",
             ):
                 value = _serialize_jsonb(value)
             set_parts.append(f"{key} = ${len(args) + 1}")
@@ -332,6 +339,7 @@ class StorageService:
                 SELECT id, document_id, full_name, email, phone, summary,
                        experience_years, skills, certifications, education,
                        experience, preferred_roles, profile_completeness_score,
+                       tags, notes,
                        created_at, updated_at
                 FROM employee_profiles
                 ORDER BY created_at DESC

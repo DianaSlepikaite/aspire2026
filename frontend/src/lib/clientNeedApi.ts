@@ -8,8 +8,18 @@ export interface ClientNeed {
   project_title?: string | null;
   project_description?: string | null;
   required_skills?: string[] | null;
+  preferred_skills?: string[] | null;
+  required_roles?: Array<{
+    category: string;
+    evidence: string;
+    description?: string | null;
+    count?: number | null;
+  }> | null;
+  work_location?: "remote" | "onsite" | "hybrid" | null;
+  timeline_duration_weeks?: number | null;
   urgency_level?: UrgencyLevel | null;
   profile_completeness_score?: number | null;
+  profile_completeness?: number | null;
   missing_information?: string[] | null;
   conversation_status: ConversationStatus;
   created_at: string;
@@ -64,6 +74,41 @@ export interface MessageResponse {
   profile_completeness: number;
   missing_fields: string[];
   can_complete: boolean;
+}
+
+export interface SkillMatch {
+  skill: string;
+  required: boolean;
+  candidate_has: boolean;
+  proficiency_level?: string | null;
+}
+
+export interface MatchExplanation {
+  strengths: string[];
+  skill_matches: SkillMatch[];
+  gaps: string[];
+  additional_notes?: string | null;
+}
+
+export interface CandidateMatch {
+  employee_profile_id: string;
+  employee_name: string;
+  employee_email?: string | null;
+  match_score: number;
+  confidence: number;
+  explanation: MatchExplanation;
+  rank: number;
+  experience_years?: number | null;
+  key_skills: string[];
+  current_availability?: string | null;
+}
+
+export interface MatchResponse {
+  client_need_id: string;
+  total_candidates_evaluated: number;
+  matches: CandidateMatch[];
+  generated_at: string;
+  ai_model?: string | null;
 }
 
 export interface ConversationCompleteResponse {
@@ -197,6 +242,31 @@ export async function completeConversation(conversationId: string) {
   const url = buildUrl(`/api/v1/conversation/${conversationId}/complete`);
   const response = await fetch(url, { method: "POST" });
   return handleResponse<ConversationCompleteResponse>(response);
+}
+
+export async function findMatchingCandidates(params: {
+  client_need_id: string;
+  max_results?: number;
+  min_match_score?: number;
+}) {
+  const url = buildUrl("/api/v1/matching/find-candidates");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse<MatchResponse>(response);
+}
+
+export async function evaluateCandidateForNeed(params: {
+  employee_profile_id: string;
+  client_need_id: string;
+}) {
+  const url = buildUrl(
+    `/api/v1/matching/candidate/${params.employee_profile_id}/for-need/${params.client_need_id}`
+  );
+  const response = await fetch(url);
+  return handleResponse<{ match: CandidateMatch; evaluated_at: string; ai_model?: string | null }>(response);
 }
 
 export async function getClarifyingQuestions(params: {

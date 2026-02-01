@@ -15,9 +15,24 @@ export default function BusinessReports({ agentRuns }: BusinessReportsProps) {
   const { data } = useClientNeedsList({ limit: 100, offset: 0 });
   const items = data?.items ?? [];
   const total = data?.total ?? items.length;
+  const runMap = new Map(
+    agentRuns.filter((run) => run.client_need_id).map((run) => [run.client_need_id!, run])
+  );
   const avgCompleteness =
     items.length > 0
-      ? Math.round(items.reduce((acc, item) => acc + (item.profile_completeness_score ?? 0), 0) / items.length)
+      ? Math.round(
+        items.reduce((acc, item) => {
+          const apiCompleteness = item.profile_completeness_score ?? item.profile_completeness;
+          const runCompleteness = runMap.get(item.id)?.completeness_score;
+          const resolved =
+            typeof apiCompleteness === "number" && apiCompleteness > 0
+              ? apiCompleteness
+              : typeof runCompleteness === "number"
+                ? runCompleteness
+                : apiCompleteness ?? 0;
+          return acc + resolved;
+        }, 0) / items.length
+      )
       : 0;
   const criticalMissingCount = items.reduce(
     (acc, item) => acc + (item.missing_information?.length ?? 0),
@@ -65,9 +80,23 @@ export default function BusinessReports({ agentRuns }: BusinessReportsProps) {
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 {need.id.slice(0, 8)}
               </p>
-              <p className="text-2xl font-semibold text-foreground">{need.profile_completeness_score ?? 0}%</p>
+              {(() => {
+                const apiCompleteness = need.profile_completeness_score ?? need.profile_completeness;
+                const runCompleteness = runMap.get(need.id)?.completeness_score;
+                const resolved =
+                  typeof apiCompleteness === "number" && apiCompleteness > 0
+                    ? apiCompleteness
+                    : typeof runCompleteness === "number"
+                      ? runCompleteness
+                      : apiCompleteness ?? 0;
+                return (
+                  <p className="text-2xl font-semibold text-foreground">
+                    {resolved}%
+                  </p>
+                );
+              })()}
               <p className="text-xs text-muted-foreground">
-                Missing {need.missing_information?.length ?? 0} fields
+                Missing {need.missing_information?.length ?? runMap.get(need.id)?.missing_fields?.length ?? 0} fields
               </p>
             </div>
           ))}

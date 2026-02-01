@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, FileUp, PlusCircle, Zap } from "lucide-react";
+import { Mic, FileUp, PlusCircle } from "lucide-react";
+import { TalentMatchMark } from "@/components/brand/TalentMatchMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -164,6 +165,10 @@ export function DarkSidebar({
 
           const response = await sendEmployeeMessage(activeConversationId, { message, message_type: messageType });
           setChatMessages((prev) => [...prev, { role: "assistant", content: response.assistant_message }]);
+          if (response.employee_profile_id) {
+            setEmployeeProfileId(response.employee_profile_id);
+            activeProfileId = response.employee_profile_id;
+          }
           if (activeProfileId) {
             queryClient.invalidateQueries({ queryKey: ["employee-profile", activeProfileId] });
             queryClient.invalidateQueries({ queryKey: ["employee-documents", activeProfileId] });
@@ -222,7 +227,13 @@ export function DarkSidebar({
           context: message,
         });
 
-        queryClient.setQueryData(["client-need", currentClientNeedId], updateResponse.client_need);
+        const normalizedClientNeed = {
+          ...updateResponse.client_need,
+          profile_completeness_score:
+            updateResponse.client_need.profile_completeness_score ?? updateResponse.profile_completeness,
+        };
+
+        queryClient.setQueryData(["client-need", currentClientNeedId], normalizedClientNeed);
         queryClient.setQueriesData(
           { queryKey: ["client-needs"], exact: false },
           (old: any) => {
@@ -230,11 +241,12 @@ export function DarkSidebar({
             return {
               ...old,
               items: old.items.map((item: any) =>
-                item.id === updateResponse.client_need.id ? updateResponse.client_need : item
+                item.id === updateResponse.client_need.id ? normalizedClientNeed : item
               ),
             };
           }
         );
+        queryClient.invalidateQueries({ queryKey: ["client-need-matches", currentClientNeedId] });
 
         setChatMessages((prev) => [
           ...prev,
@@ -403,6 +415,7 @@ export function DarkSidebar({
           onClientNeedCreated?.(clientNeedId);
           queryClient.invalidateQueries({ queryKey: ["client-needs"] });
           queryClient.invalidateQueries({ queryKey: ["client-need", clientNeedId] });
+          queryClient.invalidateQueries({ queryKey: ["client-need-matches", clientNeedId] });
           setStatusMessage("Client need created and ready for review.");
         } else {
           setStatusMessage("Intake processed, but client need ID was not returned.");
@@ -457,9 +470,9 @@ export function DarkSidebar({
       {/* Logo */}
       <div className="flex items-center gap-3 mb-12">
         <div className="size-8 bg-primary rounded-lg flex items-center justify-center">
-          <Zap className="size-4 text-primary-foreground" />
+          <TalentMatchMark className="size-5 text-primary-foreground" />
         </div>
-        <h2 className="text-foreground text-xl font-bold tracking-tight">Talent Orchestration</h2>
+        <h2 className="text-foreground text-xl font-bold tracking-tight">TalentMatch</h2>
         <span className="bg-success/10 text-success text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
           {isBusiness ? "Business" : "Career"}
         </span>

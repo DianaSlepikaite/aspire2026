@@ -2,7 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Footer } from "@/components/layout/Footer";
-import { Mic, ArrowRight, Upload, Info, Bell, User, Paperclip, Zap } from "lucide-react";
+import { Mic, ArrowRight, Upload, Info, Bell, User, Paperclip } from "lucide-react";
+import { TalentMatchMark } from "@/components/brand/TalentMatchMark";
 
 export default function Onboarding() {
   return (
@@ -11,11 +12,9 @@ export default function Onboarding() {
       <header className="flex items-center justify-between border-b border-border px-6 md:px-20 py-4 bg-background sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="size-8 text-primary">
-            <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-              <path d="M42.4379 44C42.4379 44 36.0744 33.9038 41.1692 24C46.8624 12.9336 42.2078 4 42.2078 4L7.01134 4C7.01134 4 11.6577 12.932 5.96912 23.9969C0.876273 33.9029 7.27094 44 7.27094 44L42.4379 44Z" fill="currentColor" />
-            </svg>
+            <TalentMatchMark className="size-8" />
           </div>
-          <h2 className="text-lg font-bold leading-tight tracking-tight hidden sm:block">Talent Orchestration</h2>
+          <h2 className="text-lg font-bold leading-tight tracking-tight hidden sm:block">TalentMatch</h2>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="bg-secondary text-muted-foreground hover:text-foreground">
