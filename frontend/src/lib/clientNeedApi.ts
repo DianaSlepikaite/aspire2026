@@ -1,62 +1,4 @@
-export type ConversationStatus = "in_progress" | "completed" | "abandoned";
 export type UrgencyLevel = "low" | "medium" | "high" | "critical";
-export type WorkLocation = "remote" | "onsite" | "hybrid";
-
-export interface RoleInfo {
-  category: string;
-  evidence: string;
-  description?: string | null;
-  count?: number | null;
-}
-
-export interface ClientNeed {
-  id: string;
-  conversation_id: string;
-  client_name?: string | null;
-  client_email?: string | null;
-  client_phone?: string | null;
-  client_company?: string | null;
-  project_title?: string | null;
-  project_description?: string | null;
-  project_type?: string | null;
-  industry?: string | null;
-  required_skills?: string[] | null;
-  preferred_skills?: string[] | null;
-  certifications_required?: string[] | null;
-  budget_min?: number | null;
-  budget_max?: number | null;
-  budget_currency?: string | null;
-  timeline_start_date?: string | null;
-  timeline_end_date?: string | null;
-  timeline_duration_weeks?: number | null;
-  urgency_level?: UrgencyLevel | null;
-  work_location?: WorkLocation | null;
-  team_size_needed?: number | null;
-  required_roles?: RoleInfo[] | null;
-  needs_summary?: string | null;
-  key_challenges?: string[] | null;
-  success_criteria?: string[] | null;
-  risk_factors?: string[] | null;
-  profile_completeness_score: number;
-  conversation_status: ConversationStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ClientNeedList {
-  items: ClientNeed[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface ClientNeedListParams {
-  status?: ConversationStatus;
-  urgency?: UrgencyLevel;
-  min_completeness?: number;
-  limit?: number;
-  offset?: number;
-}
 
 export interface IntakePackage {
   id: string;
@@ -72,6 +14,10 @@ export interface AgentResponse {
     action?: string;
     details?: Record<string, unknown>;
   }>;
+  client_need_id?: string;
+  completeness_score?: number;
+  missing_fields?: string[];
+  critical_missing_fields?: string[];
 }
 
 const API_BASE = (import.meta as ImportMeta).env?.VITE_CLIENT_NEED_API_URL ?? "http://localhost:8000";
@@ -99,28 +45,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
     throw new Error(typeof details === "string" ? details : JSON.stringify(details));
   }
   return response.json() as Promise<T>;
-}
-
-export async function listClientNeeds(params: ClientNeedListParams = {}) {
-  const url = buildUrl("/api/v1/client-needs", params);
-  const response = await fetch(url, { method: "GET" });
-  return handleResponse<ClientNeedList>(response);
-}
-
-export async function getClientNeed(id: string) {
-  const url = buildUrl(`/api/v1/client-needs/${id}`);
-  const response = await fetch(url, { method: "GET" });
-  return handleResponse<ClientNeed>(response);
-}
-
-export async function updateClientNeed(id: string, update: Partial<ClientNeed>) {
-  const url = buildUrl(`/api/v1/client-needs/${id}`);
-  const response = await fetch(url, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(update),
-  });
-  return handleResponse<ClientNeed>(response);
 }
 
 export async function uploadIntakeText(params: {

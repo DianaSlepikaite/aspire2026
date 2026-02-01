@@ -1,8 +1,7 @@
-import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Calendar, ChevronDown, Filter, PlusCircle, Zap } from "lucide-react";
-import { useClientNeeds } from "@/hooks/useClientNeeds";
+import { AgentResponse } from "@/lib/clientNeedApi";
 
 const filterChips = [
   { label: "All Departments", active: true, hasDropdown: true },
@@ -15,21 +14,16 @@ interface BusinessStaffingProps {
   selectedClientNeedId?: string | null;
   onSelectNeed?: (id: string) => void;
   onViewRoles?: () => void;
+  agentRuns: AgentResponse[];
 }
 
 export default function BusinessStaffing({
   selectedClientNeedId,
   onSelectNeed,
   onViewRoles,
+  agentRuns,
 }: BusinessStaffingProps) {
-  const { data, isLoading, isError } = useClientNeeds({ limit: 8, offset: 0 });
-  const items = data?.items ?? [];
-
-  useEffect(() => {
-    if (!selectedClientNeedId && items[0]?.id && onSelectNeed) {
-      onSelectNeed(items[0].id);
-    }
-  }, [items, onSelectNeed, selectedClientNeedId]);
+  const items = agentRuns;
 
   return (
     <section className="space-y-6">
@@ -73,32 +67,22 @@ export default function BusinessStaffing({
           Client Needs Intake
         </h4>
 
-        {isLoading && (
+        {items.length === 0 && (
           <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            Loading client needs...
-          </div>
-        )}
-
-        {isError && (
-          <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            Unable to load client needs. Check the client-need service and try again.
-          </div>
-        )}
-
-        {!isLoading && !isError && items.length === 0 && (
-          <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            No client needs found yet. Upload a brief to get started.
+            No client needs processed yet. Send a brief to the agent to get started.
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-4">
           {items.map((need) => {
-            const isSelected = need.id === selectedClientNeedId;
+            const id = need.client_need_id || "";
+            const isSelected = id === selectedClientNeedId;
+            const completeness = need.completeness_score ?? 0;
             return (
               <button
-                key={need.id}
+                key={id || need.output}
                 type="button"
-                onClick={() => onSelectNeed?.(need.id)}
+                onClick={() => id && onSelectNeed?.(id)}
                 className={`text-left rounded-2xl border p-5 transition-colors ${
                   isSelected ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary/30"
                 }`}
@@ -107,39 +91,36 @@ export default function BusinessStaffing({
                   <div className="space-y-2">
                     <div className="flex items-center gap-3">
                       <h5 className="text-lg font-semibold">
-                        {need.project_title || "Untitled Client Need"}
+                        Client Need #{id ? id.slice(0, 8) : "Pending"}
                       </h5>
-                      {need.urgency_level && (
-                        <Badge variant={need.urgency_level === "critical" ? "destructive" : "secondary"}>
-                          {need.urgency_level}
-                        </Badge>
-                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {need.client_company || need.client_name || "Client information pending"}
+                      {need.output.slice(0, 120)}{need.output.length > 120 ? "..." : ""}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {(need.required_skills || []).slice(0, 4).map((skill) => (
-                        <Badge key={skill} variant="outline">
-                          {skill}
+                      {(need.missing_fields || []).slice(0, 3).map((field) => (
+                        <Badge key={field} variant="outline">
+                          {field}
                         </Badge>
                       ))}
-                      {need.required_skills && need.required_skills.length > 4 && (
-                        <Badge variant="outline">+{need.required_skills.length - 4} more</Badge>
+                      {need.missing_fields && need.missing_fields.length > 3 && (
+                        <Badge variant="outline">+{need.missing_fields.length - 3} missing</Badge>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="text-right">
                       <p className="text-xs uppercase tracking-wide">Completeness</p>
-                      <p className="text-lg font-semibold text-foreground">{need.profile_completeness_score}%</p>
+                      <p className="text-lg font-semibold text-foreground">{completeness}%</p>
                     </div>
                     <Button
                       variant={isSelected ? "default" : "outline"}
                       className="font-semibold"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onSelectNeed?.(need.id);
+                        if (id) {
+                          onSelectNeed?.(id);
+                        }
                         onViewRoles?.();
                       }}
                     >

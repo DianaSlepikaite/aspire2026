@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mic, FileUp, PlusCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useProcessIntake, useUploadIntakeFile, useUploadIntakeText } from "@/hooks/useClientNeeds";
+import { AgentResponse } from "@/lib/clientNeedApi";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ interface DarkSidebarProps {
   userImage?: string;
   variant?: "career" | "business";
   onClientNeedCreated?: (clientNeedId: string) => void;
+  onAgentResult?: (result: AgentResponse) => void;
 }
 
 export function DarkSidebar({ 
@@ -27,6 +29,7 @@ export function DarkSidebar({
   userImage = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
   variant = "career",
   onClientNeedCreated,
+  onAgentResult,
 }: DarkSidebarProps) {
   const navigate = useNavigate();
   const isBusiness = variant === "business";
@@ -36,12 +39,78 @@ export function DarkSidebar({
   const [intakeFile, setIntakeFile] = useState<File | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [intakeOpen, setIntakeOpen] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [aiState, setAiState] = useState<"idle" | "listening" | "thinking" | "talking">("idle");
+  const recognitionRef = useRef<any>(null);
 
   const uploadText = useUploadIntakeText();
   const uploadFile = useUploadIntakeFile();
   const processIntake = useProcessIntake();
 
   const isSubmitting = uploadText.isPending || uploadFile.isPending || processIntake.isPending;
+  const isChatBusy = isSubmitting;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognitionImpl = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionImpl) return;
+
+    const recognition = new SpeechRecognitionImpl();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onstart = () => setAiState("listening");
+    recognition.onend = () => setAiState("idle");
+    recognition.onerror = () => setAiState("idle");
+    recognition.onresult = (event: any) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || "";
+      if (transcript) {
+        setChatInput(transcript);
+        void handleSendMessage(transcript);
+      }
+    };
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  async function handleSendMessage(messageOverride?: string) {
+    const message = (messageOverride ?? chatInput).trim();
+    if (!message) return;
+
+    setChatMessages((prev) => [...prev, { role: "user", content: message }]);
+    setChatInput("");
+    setAiState("thinking");
+
+    try {
+      const intakeResponse = await uploadText.mutateAsync({
+        text_content: message,
+        client_name: isBusiness ? userName : undefined,
+        source_label: isBusiness ? "business_portal_chat" : "career_portal_chat",
+      });
+
+      const agentResponse = await processIntake.mutateAsync({
+        intakeId: intakeResponse.id,
+        userQuery: message,
+      });
+
+      setChatMessages((prev) => [...prev, { role: "assistant", content: agentResponse.output }]);
+      onAgentResult?.(agentResponse);
+      if (agentResponse.client_need_id) {
+        onClientNeedCreated?.(agentResponse.client_need_id);
+      }
+      setAiState("talking");
+      window.setTimeout(() => setAiState("idle"), 1500);
+    } catch {
+      setAiState("idle");
+    }
+  }
+
+  function handleStartListening() {
+    if (!recognitionRef.current) return;
+    recognitionRef.current.start();
+  }
 
   function extractClientNeedId(intermediateSteps: Array<{ step: string; details?: Record<string, unknown> }>) {
     const saved = intermediateSteps.find((step) => step.step === "save_client_need");
@@ -120,17 +189,52 @@ export function DarkSidebar({
         </div>
 
         {/* AI Pulse Visualizer */}
-        <div className="h-24 flex  items-center justify-center gap-1">
+        <div className="h-24 flex items-center justify-center gap-1">
           {[40, 60, 100, 80, 50, 70].map((height, i) => (
             <div
               key={i}
-              className="w-1 bg-primary rounded-full animate-pulse"
+              className={`w-1 rounded-full transition-colors ${
+                aiState === "listening"
+                  ? "bg-success animate-pulse"
+                  : aiState === "thinking"
+                  ? "bg-warning animate-pulse"
+                  : aiState === "talking"
+                  ? "bg-primary animate-pulse"
+                  : "bg-primary/60"
+              }`}
               style={{
                 height: `${height}%`,
                 opacity: height / 100,
                 animationDelay: `${i * 0.1}s`,
               }}
             />
+          ))}
+        </div>
+        <div className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          {aiState === "listening" && "Listening"}
+          {aiState === "thinking" && "Thinking"}
+          {aiState === "talking" && "Talking"}
+          {aiState === "idle" && "Ready"}
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3 max-h-64 overflow-y-auto">
+          {chatMessages.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Start a conversation to build a profile or clarify staffing needs.
+            </p>
+          )}
+          {chatMessages.map((message, idx) => (
+            <div
+              key={`${message.role}-${idx}`}
+              className={`text-sm p-3 rounded-lg ${
+                message.role === "user" ? "bg-secondary/60 text-foreground" : "bg-primary/10 text-foreground"
+              }`}
+            >
+              <span className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                {message.role === "user" ? "You" : "AI"}
+              </span>
+              {message.content}
+            </div>
           ))}
         </div>
 
@@ -143,10 +247,18 @@ export function DarkSidebar({
                 ? "Ask AI to analyze staffing gaps, prioritize roles, or draft a project request..."
                 : "Ask AI to analyze your recent project or update your CV..."
             }
+            value={chatInput}
+            onChange={(event) => setChatInput(event.target.value)}
           />
           <div className="flex items-center justify-between pt-2 border-t border-border mt-4">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={handleStartListening}
+                disabled={!recognitionRef.current}
+              >
                 <Mic className="size-5" />
               </Button>
               {isBusiness ? (
@@ -167,8 +279,8 @@ export function DarkSidebar({
                 <PlusCircle className="size-5" />
               </Button>
             </div>
-            <Button className="font-semibold">
-              Send Command
+            <Button className="font-semibold" onClick={() => handleSendMessage()} disabled={isChatBusy}>
+              {isChatBusy ? "Sending..." : "Send Command"}
             </Button>
           </div>
         </div>

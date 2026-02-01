@@ -5,10 +5,12 @@ import { Bell, Settings } from "lucide-react";
 import BusinessStaffing from "@/components/layout/BusinessStaffing";
 import BusinessRoles from "@/components/layout/BusinessRoles";
 import BusinessReports from "@/components/layout/BusinessReports";
+import { AgentResponse } from "@/lib/clientNeedApi";
 
 export default function BusinessPortal() {
   const [activeTab, setActiveTab] = useState<"staffing" | "roles" | "reports">("staffing");
   const [selectedClientNeedId, setSelectedClientNeedId] = useState<string | null>(null);
+  const [agentRuns, setAgentRuns] = useState<AgentResponse[]>([]);
 
   return (
     <div className="flex h-screen overflow-hidden dark">
@@ -20,6 +22,13 @@ export default function BusinessPortal() {
         onClientNeedCreated={(clientNeedId) => {
           setSelectedClientNeedId(clientNeedId);
           setActiveTab("roles");
+        }}
+        onAgentResult={(result) => {
+          setAgentRuns((prev) => [result, ...prev]);
+          if (result.client_need_id) {
+            setSelectedClientNeedId(result.client_need_id);
+            setActiveTab("roles");
+          }
         }}
       />
 
@@ -76,10 +85,13 @@ export default function BusinessPortal() {
               selectedClientNeedId={selectedClientNeedId}
               onSelectNeed={setSelectedClientNeedId}
               onViewRoles={() => setActiveTab("roles")}
+              agentRuns={agentRuns}
             />
           )}
-          {activeTab === "roles" && <BusinessRoles clientNeedId={selectedClientNeedId} />}
-          {activeTab === "reports" && <BusinessReports />}
+          {activeTab === "roles" && (
+            <BusinessRoles clientNeedId={selectedClientNeedId} agentRuns={agentRuns} />
+          )}
+          {activeTab === "reports" && <BusinessReports agentRuns={agentRuns} />}
         </div>
       </main>
     </div>

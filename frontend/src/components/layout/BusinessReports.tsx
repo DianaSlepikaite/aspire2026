@@ -1,24 +1,23 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useClientNeeds } from "@/hooks/useClientNeeds";
+import { AgentResponse } from "@/lib/clientNeedApi";
 
-export default function BusinessReports() {
-  const { data, isLoading } = useClientNeeds({ limit: 100, offset: 0 });
-  const items = data?.items ?? [];
-  const total = data?.total ?? 0;
+interface BusinessReportsProps {
+  agentRuns: AgentResponse[];
+}
+
+export default function BusinessReports({ agentRuns }: BusinessReportsProps) {
+  const total = agentRuns.length;
   const avgCompleteness =
-    items.length > 0
-      ? Math.round(items.reduce((acc, item) => acc + item.profile_completeness_score, 0) / items.length)
+    total > 0
+      ? Math.round(
+          agentRuns.reduce((acc, item) => acc + (item.completeness_score ?? 0), 0) / total,
+        )
       : 0;
-  const urgencyCounts = items.reduce<Record<string, number>>((acc, item) => {
-    const key = item.urgency_level ?? "unknown";
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-  const statusCounts = items.reduce<Record<string, number>>((acc, item) => {
-    acc[item.conversation_status] = (acc[item.conversation_status] || 0) + 1;
-    return acc;
-  }, {});
+  const criticalMissingCount = agentRuns.reduce(
+    (acc, item) => acc + (item.critical_missing_fields?.length ?? 0),
+    0,
+  );
 
   return (
     <section className="space-y-6">
@@ -45,24 +44,31 @@ export default function BusinessReports() {
           <p className="text-sm text-muted-foreground">Across ingested needs</p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-6 space-y-2">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">In Progress</p>
-          <p className="text-3xl font-bold">{statusCounts.in_progress || 0}</p>
-          <p className="text-sm text-muted-foreground">Active conversations</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Critical Gaps</p>
+          <p className="text-3xl font-bold">{criticalMissingCount}</p>
+          <p className="text-sm text-muted-foreground">Fields missing across briefs</p>
         </div>
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-lg font-semibold">Urgency Breakdown</h4>
-          {isLoading && <Badge variant="secondary">Loading</Badge>}
+          <h4 className="text-lg font-semibold">Completeness Range</h4>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
-          {["critical", "high", "medium", "low", "unknown"].map((level) => (
-            <div key={level} className="rounded-xl border border-border p-4">
-              <p className="uppercase text-xs tracking-wide">{level}</p>
-              <p className="text-2xl font-semibold text-foreground">{urgencyCounts[level] || 0}</p>
+        <div className="flex flex-wrap gap-3">
+          {agentRuns.map((run, idx) => (
+            <div key={`${run.client_need_id || "run"}-${idx}`} className="rounded-xl border border-border p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                {run.client_need_id ? run.client_need_id.slice(0, 8) : `Run ${idx + 1}`}
+              </p>
+              <p className="text-2xl font-semibold text-foreground">{run.completeness_score ?? 0}%</p>
+              <p className="text-xs text-muted-foreground">
+                Missing {run.missing_fields?.length ?? 0} fields
+              </p>
             </div>
           ))}
+          {agentRuns.length === 0 && (
+            <p className="text-sm text-muted-foreground">No agent runs yet.</p>
+          )}
         </div>
       </div>
     </section>
