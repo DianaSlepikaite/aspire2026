@@ -3,8 +3,9 @@ Conversation management endpoints.
 """
 
 import logging
+from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from employee_conversation_service.models.schemas import (
     ConversationStartRequest,
@@ -13,7 +14,8 @@ from employee_conversation_service.models.schemas import (
     MessageResponse,
     ConversationStatusResponse,
     ConversationCompleteResponse,
-    ConversationHistory
+    ConversationHistory,
+    EmployeeLookupResponse
 )
 from employee_conversation_service.services.conversation_service import ConversationService
 from employee_conversation_service.core.exceptions import (
@@ -25,6 +27,87 @@ from employee_conversation_service.core.exceptions import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get(
+    "/lookup",
+    response_model=EmployeeLookupResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Look up employee conversations",
+    description="Look up an employee's conversation history by employee_id or employee_email"
+)
+async def lookup_employee(
+    employee_id: Optional[str] = Query(None, description="PS Employee ID"),
+    employee_email: Optional[str] = Query(None, description="Employee email address")
+):
+    """
+    Look up an employee's previous conversations.
+
+    At least one of employee_id or employee_email must be provided.
+    Returns conversation history, counts, and latest profile data.
+    """
+    if not employee_id and not employee_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "At least one of employee_id or employee_email is required"}
+        )
+
+    try:
+        conversation_service = ConversationService()
+        response = await conversation_service.lookup_employee(
+            employee_id=employee_id,
+            employee_email=employee_email
+        )
+        return response
+    except ConversationError as e:
+        logger.error(f"Failed to lookup employee: {e}")
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details}
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error looking up employee: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to lookup employee"}
+        )
+
+
+@router.post(
+    "/{conversation_id}/resume",
+    response_model=ConversationStartResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Resume a conversation",
+    description="Resume an in-progress conversation"
+)
+async def resume_conversation(conversation_id: UUID):
+    """
+    Resume an in-progress conversation.
+
+    Resets the conversation timeout and generates a welcome-back message
+    that recaps where the conversation left off.
+    """
+    try:
+        conversation_service = ConversationService()
+        response = await conversation_service.resume_conversation(conversation_id)
+        return response
+    except ConversationNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": e.message}
+        )
+    except ConversationError as e:
+        logger.error(f"Failed to resume conversation: {e}")
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details}
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error resuming conversation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to resume conversation"}
+        )
 
 
 @router.post(

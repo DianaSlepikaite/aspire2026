@@ -394,6 +394,38 @@ We'll have a casual chat covering your current skills, project experience, and w
 To get started, could you tell me a bit about your current role and what you've been working on recently?"""
 
 
+RETURNING_USER_GREETING_PROMPT = """You are the ASPIRE talent profiling specialist welcoming back a returning Publicis Sapient employee.
+
+The following information was gathered from a previous conversation:
+{profile_context}
+
+Generate a warm, personalized welcome-back greeting that:
+1. Acknowledges the employee by name (if known)
+2. Briefly mentions 1-2 key details you already know about them (e.g., their career track, a recent project, or a skill)
+3. Explains that their previous profile information has been carried forward
+4. Asks what has changed since their last conversation (new projects, new skills, updated goals)
+5. Keeps a collegial, supportive tone
+
+Keep the greeting concise (3-5 sentences). Do not list all their information back to them."""
+
+
+RESUME_GREETING_PROMPT = """You are the ASPIRE talent profiling specialist helping a Publicis Sapient employee resume an in-progress conversation.
+
+The following information has been gathered so far:
+{profile_context}
+
+Here are the last few messages from the conversation:
+{last_messages}
+
+Generate a brief welcome-back message that:
+1. Warmly acknowledges their return
+2. Briefly recaps where the conversation left off (1-2 sentences)
+3. Suggests what to cover next based on missing information
+4. Keeps a natural, conversational tone
+
+Keep the message concise (2-4 sentences)."""
+
+
 COMPLETION_PROMPT = """Based on the conversation history and extracted information, generate a comprehensive summary of the employee's professional profile for internal staffing purposes.
 
 The summary should include:
@@ -408,12 +440,16 @@ The summary should include:
 Make the summary clear, concise, and actionable for staffing managers matching employees to project opportunities."""
 
 
-def get_conversation_context(extracted_data: Dict[str, Any]) -> str:
+def get_conversation_context(
+    extracted_data: Dict[str, Any],
+    is_returning_user: bool = False
+) -> str:
     """
     Generate context about currently extracted information to inject into the system prompt.
 
     Args:
         extracted_data: Dictionary of extracted information
+        is_returning_user: Whether this data was carried forward from a previous conversation
 
     Returns:
         Context string describing what's been extracted
@@ -421,7 +457,17 @@ def get_conversation_context(extracted_data: Dict[str, Any]) -> str:
     if not extracted_data:
         return "No information extracted yet."
 
-    context_parts = ["Currently extracted information:"]
+    context_parts = []
+
+    if is_returning_user:
+        context_parts.append(
+            "This employee is a returning user. The following was carried forward "
+            "from previous conversations. Verify whether this is still accurate "
+            "and ask about any changes."
+        )
+        context_parts.append("")
+
+    context_parts.append("Currently extracted information:")
 
     if extracted_data.get("employee_name"):
         context_parts.append(f"- Name: {extracted_data['employee_name']}")

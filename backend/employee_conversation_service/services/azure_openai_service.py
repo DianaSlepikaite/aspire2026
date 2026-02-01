@@ -21,6 +21,8 @@ from employee_conversation_service.prompts.system_prompts import (
     SYSTEM_PROMPT,
     EXTRACTION_FUNCTIONS,
     GREETING_MESSAGE,
+    RETURNING_USER_GREETING_PROMPT,
+    RESUME_GREETING_PROMPT,
     get_conversation_context
 )
 
@@ -209,6 +211,92 @@ class AzureOpenAIService:
             Greeting message string
         """
         return GREETING_MESSAGE
+
+    async def generate_returning_user_greeting(
+        self,
+        profile_data: Dict[str, Any]
+    ) -> str:
+        """
+        Generate a personalized greeting for a returning user.
+
+        Args:
+            profile_data: Carried-forward profile data dictionary
+
+        Returns:
+            Personalized greeting message
+        """
+        try:
+            self._ensure_client()
+
+            profile_context = get_conversation_context(profile_data, is_returning_user=True)
+            prompt = RETURNING_USER_GREETING_PROMPT.format(profile_context=profile_context)
+
+            response = await self._client.chat.completions.create(
+                model=self.settings.AZURE_OPENAI_DEPLOYMENT_NAME,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": "Generate the welcome-back greeting."}
+                ],
+                temperature=0.6,
+                max_tokens=300
+            )
+
+            greeting = response.choices[0].message.content or ""
+            logger.info("Generated returning user greeting")
+            return greeting
+
+        except Exception as e:
+            logger.warning(f"Failed to generate returning user greeting, using fallback: {e}")
+            return GREETING_MESSAGE
+
+    async def generate_resume_greeting(
+        self,
+        profile_data: Dict[str, Any],
+        recent_messages: List[Dict[str, str]]
+    ) -> str:
+        """
+        Generate a greeting for resuming an in-progress conversation.
+
+        Args:
+            profile_data: Current profile data dictionary
+            recent_messages: Last few messages from the conversation
+
+        Returns:
+            Resume greeting message
+        """
+        try:
+            self._ensure_client()
+
+            profile_context = get_conversation_context(profile_data)
+
+            last_messages_text = ""
+            for msg in recent_messages[-3:]:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                last_messages_text += f"{role}: {content}\n"
+
+            prompt = RESUME_GREETING_PROMPT.format(
+                profile_context=profile_context,
+                last_messages=last_messages_text.strip()
+            )
+
+            response = await self._client.chat.completions.create(
+                model=self.settings.AZURE_OPENAI_DEPLOYMENT_NAME,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": "Generate the resume greeting."}
+                ],
+                temperature=0.6,
+                max_tokens=300
+            )
+
+            greeting = response.choices[0].message.content or ""
+            logger.info("Generated resume greeting")
+            return greeting
+
+        except Exception as e:
+            logger.warning(f"Failed to generate resume greeting, using fallback: {e}")
+            return "Welcome back! Let's continue where we left off."
 
     async def generate_summary(
         self,

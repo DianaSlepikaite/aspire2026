@@ -604,6 +604,245 @@ class StorageService:
                 details={"error": str(e)}
             )
 
+    # Employee Lookup Operations
+
+    async def find_employee_profiles_by_identifier(
+        self,
+        employee_id: Optional[str] = None,
+        employee_email: Optional[str] = None,
+        status_filter: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0
+    ) -> tuple[List[EmployeeProfile], int]:
+        """
+        Find employee profiles by employee_id or employee_email.
+
+        Args:
+            employee_id: PS Employee ID (takes priority)
+            employee_email: Employee email
+            status_filter: Optional conversation status filter
+            limit: Maximum results
+            offset: Pagination offset
+
+        Returns:
+            Tuple of (list of profiles, total count)
+        """
+        try:
+            pool = await self._get_pool()
+
+            conditions = []
+            values = []
+            param_idx = 1
+
+            if employee_id:
+                conditions.append(f"employee_id = ${param_idx}")
+                values.append(employee_id)
+                param_idx += 1
+            elif employee_email:
+                conditions.append(f"employee_email = ${param_idx}")
+                values.append(employee_email)
+                param_idx += 1
+            else:
+                return [], 0
+
+            if status_filter:
+                conditions.append(f"conversation_status = ${param_idx}")
+                values.append(status_filter)
+                param_idx += 1
+
+            where_clause = f"WHERE {' AND '.join(conditions)}"
+
+            count_query = f"SELECT COUNT(*) FROM {PROFILES_TABLE} {where_clause}"
+
+            data_query = f"""
+                SELECT * FROM {PROFILES_TABLE}
+                {where_clause}
+                ORDER BY conversation_completed_at DESC NULLS LAST, created_at DESC
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+            """
+
+            async with pool.acquire() as conn:
+                total = await conn.fetchval(count_query, *values)
+                rows = await conn.fetch(data_query, *values, limit, offset)
+
+            profiles = [EmployeeProfile(**dict(row)) for row in rows]
+
+            logger.info(
+                f"Found {len(profiles)} profiles for employee lookup (total: {total})"
+            )
+
+            return profiles, total
+
+        except Exception as e:
+            logger.error(f"Failed to find employee profiles by identifier: {e}")
+            raise StorageError(
+                f"Failed to find employee profiles: {str(e)}",
+                details={"error": str(e)}
+            )
+
+    async def get_latest_completed_profile(
+        self,
+        employee_id: Optional[str] = None,
+        employee_email: Optional[str] = None
+    ) -> Optional[EmployeeProfile]:
+        """
+        Get the most recently completed profile for an employee.
+
+        Args:
+            employee_id: PS Employee ID (takes priority)
+            employee_email: Employee email
+
+        Returns:
+            Most recent completed profile, or None
+        """
+        try:
+            pool = await self._get_pool()
+
+            if employee_id:
+                query = f"""
+                    SELECT * FROM {PROFILES_TABLE}
+                    WHERE employee_id = $1 AND conversation_status = 'completed'
+                    ORDER BY conversation_completed_at DESC
+                    LIMIT 1
+                """
+                param = employee_id
+            elif employee_email:
+                query = f"""
+                    SELECT * FROM {PROFILES_TABLE}
+                    WHERE employee_email = $1 AND conversation_status = 'completed'
+                    ORDER BY conversation_completed_at DESC
+                    LIMIT 1
+                """
+                param = employee_email
+            else:
+                return None
+
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, param)
+
+            if not row:
+                return None
+
+            return EmployeeProfile(**dict(row))
+
+        except Exception as e:
+            logger.error(f"Failed to get latest completed profile: {e}")
+            raise StorageError(
+                f"Failed to get latest completed profile: {str(e)}",
+                details={"error": str(e)}
+            )
+
+    async def get_in_progress_conversation(
+        self,
+        employee_id: Optional[str] = None,
+        employee_email: Optional[str] = None
+    ) -> Optional[EmployeeProfile]:
+        """
+        Get the most recent in-progress conversation for an employee.
+
+        Args:
+            employee_id: PS Employee ID (takes priority)
+            employee_email: Employee email
+
+        Returns:
+            Most recent in-progress profile, or None
+        """
+        try:
+            pool = await self._get_pool()
+
+            if employee_id:
+                query = f"""
+                    SELECT * FROM {PROFILES_TABLE}
+                    WHERE employee_id = $1 AND conversation_status = 'in_progress'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                param = employee_id
+            elif employee_email:
+                query = f"""
+                    SELECT * FROM {PROFILES_TABLE}
+                    WHERE employee_email = $1 AND conversation_status = 'in_progress'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                param = employee_email
+            else:
+                return None
+
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(query, param)
+
+            if not row:
+                return None
+
+            return EmployeeProfile(**dict(row))
+
+        except Exception as e:
+            logger.error(f"Failed to get in-progress conversation: {e}")
+            raise StorageError(
+                f"Failed to get in-progress conversation: {str(e)}",
+                details={"error": str(e)}
+            )
+
+    async def get_conversation_count_for_employee(
+        self,
+        employee_id: Optional[str] = None,
+        employee_email: Optional[str] = None
+    ) -> Dict[str, int]:
+        """
+        Get conversation counts grouped by status for an employee.
+
+        Args:
+            employee_id: PS Employee ID (takes priority)
+            employee_email: Employee email
+
+        Returns:
+            Dict like {"completed": 3, "in_progress": 1, "total": 4}
+        """
+        try:
+            pool = await self._get_pool()
+
+            if employee_id:
+                query = f"""
+                    SELECT conversation_status, COUNT(*) as cnt
+                    FROM {PROFILES_TABLE}
+                    WHERE employee_id = $1
+                    GROUP BY conversation_status
+                """
+                param = employee_id
+            elif employee_email:
+                query = f"""
+                    SELECT conversation_status, COUNT(*) as cnt
+                    FROM {PROFILES_TABLE}
+                    WHERE employee_email = $1
+                    GROUP BY conversation_status
+                """
+                param = employee_email
+            else:
+                return {"total": 0}
+
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(query, param)
+
+            counts: Dict[str, int] = {}
+            total = 0
+            for row in rows:
+                status = row["conversation_status"]
+                count = row["cnt"]
+                counts[status] = count
+                total += count
+
+            counts["total"] = total
+
+            return counts
+
+        except Exception as e:
+            logger.error(f"Failed to get conversation count for employee: {e}")
+            raise StorageError(
+                f"Failed to get conversation count: {str(e)}",
+                details={"error": str(e)}
+            )
+
     async def check_health(self) -> bool:
         """
         Check if database connection is healthy.

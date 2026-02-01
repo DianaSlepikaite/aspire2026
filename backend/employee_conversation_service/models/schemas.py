@@ -97,6 +97,9 @@ class ConversationStartRequest(BaseModel):
     employee_email: Optional[EmailStr] = None
     source_channel: str = Field(default="web", max_length=50)
     initial_context: Optional[Dict[str, Any]] = Field(default=None)
+    resume_conversation_id: Optional[UUID] = Field(
+        None, description="Resume this in-progress conversation instead of starting new"
+    )
 
 
 class ConversationStartResponse(BaseModel):
@@ -105,6 +108,10 @@ class ConversationStartResponse(BaseModel):
     employee_profile_id: UUID
     greeting_message: str
     audio_url: Optional[str] = None
+    is_returning_user: bool = False
+    is_resumed: bool = False
+    previous_conversation_count: int = 0
+    profile_completeness: int = 0
 
 
 class MessageRequest(BaseModel):
@@ -391,6 +398,7 @@ class EmployeeProfileCreate(EmployeeProfileBase):
 class EmployeeProfileUpdate(EmployeeProfileBase):
     """Schema for updating an employee profile (all fields optional)."""
     conversation_status: Optional[ConversationStatus] = None
+    conversation_started_at: Optional[datetime] = None
     conversation_completed_at: Optional[datetime] = None
     profile_completeness_score: Optional[int] = Field(None, ge=0, le=100)
 
@@ -480,6 +488,32 @@ class EmployeeProfileList(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# Employee Lookup Schemas
+
+class ConversationSummaryItem(BaseModel):
+    """Summary of a single conversation for employee lookup."""
+    conversation_id: UUID
+    profile_id: UUID
+    conversation_status: ConversationStatus
+    profile_completeness_score: int
+    conversation_started_at: datetime
+    conversation_completed_at: Optional[datetime] = None
+    total_messages: int
+
+
+class EmployeeLookupResponse(BaseModel):
+    """Response for looking up an employee's conversation history."""
+    found: bool
+    employee_id: Optional[str] = None
+    employee_email: Optional[str] = None
+    employee_name: Optional[str] = None
+    latest_profile: Optional[EmployeeProfile] = None
+    conversation_counts: Dict[str, int] = Field(default_factory=dict)
+    conversations: List[ConversationSummaryItem] = Field(default_factory=list)
+    has_in_progress: bool = False
+    in_progress_conversation_id: Optional[UUID] = None
 
 
 # Conversation Message Schemas

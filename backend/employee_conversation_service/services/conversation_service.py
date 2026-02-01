@@ -23,6 +23,9 @@ from employee_conversation_service.models.schemas import (
     ConversationHistory,
     EmployeeProfileCreate,
     EmployeeProfileUpdate,
+    EmployeeProfile,
+    EmployeeLookupResponse,
+    ConversationSummaryItem,
     ConversationMessageCreate,
     MessageRole,
     MessageType,
@@ -48,12 +51,32 @@ class ConversationService:
         self.extraction_service = SkillExtractionService()
         self.speech_service = SpeechService()
 
+    # ── Carry-forward field list ──
+    # All fields from EmployeeProfileBase that should be copied to a new profile
+    CARRY_FORWARD_FIELDS = [
+        "employee_id", "employee_name", "employee_email",
+        "location", "career_track", "experience_level",
+        "years_at_ps", "years_total_experience",
+        "bench_status", "current_assignment", "availability_date",
+        "technical_skills", "soft_skills", "domain_expertise",
+        "methodologies", "tools_platforms",
+        "project_history", "notable_achievements",
+        "training_certifications", "current_learning",
+        "career_goals", "professional_summary",
+        "strengths", "areas_for_growth", "notes",
+    ]
+
     async def start_conversation(
         self,
         request: ConversationStartRequest
     ) -> ConversationStartResponse:
         """
-        Start a new conversation session.
+        Start a new conversation session (dispatcher).
+
+        Handles three branches:
+        1. Resume an in-progress conversation
+        2. Returning identified user with previous data
+        3. Brand-new anonymous conversation
 
         Args:
             request: Conversation start request
@@ -65,58 +88,350 @@ class ConversationService:
             ConversationError: If conversation creation fails
         """
         try:
-            logger.info("Starting new employee conversation")
+            # Branch 1: Resume existing conversation
+            if request.resume_conversation_id:
+                return await self.resume_conversation(request.resume_conversation_id)
 
-            # Generate conversation ID
-            conversation_id = uuid4()
+            # Branch 2: Identified user — check for existing data
+            if request.employee_id or request.employee_email:
+                # Check for an existing in-progress conversation
+                in_progress = await self.storage_service.get_in_progress_conversation(
+                    employee_id=request.employee_id,
+                    employee_email=request.employee_email
+                )
+                if in_progress:
+                    await self._abandon_conversation(in_progress)
 
-            # Create employee profile
-            profile_data = EmployeeProfileCreate(
-                conversation_id=conversation_id,
-                employee_id=request.employee_id,
-                employee_email=request.employee_email,
-                source_channel=request.source_channel
-            )
+                # Check for a completed profile to carry forward
+                latest = await self.storage_service.get_latest_completed_profile(
+                    employee_id=request.employee_id,
+                    employee_email=request.employee_email
+                )
 
-            employee_profile = await self.storage_service.create_employee_profile(profile_data)
+                # Prefer completed; fallback to abandoned in-progress
+                carry_from = latest or in_progress
 
-            # Generate greeting message
-            greeting_text = await self.openai_service.generate_greeting()
+                if carry_from:
+                    return await self._start_returning_user_conversation(request, carry_from)
 
-            # Save greeting message
-            greeting_msg = ConversationMessageCreate(
-                conversation_id=conversation_id,
-                role=MessageRole.ASSISTANT,
-                content=greeting_text,
-                message_type=MessageType.TEXT
-            )
-            await self.storage_service.save_message(greeting_msg)
+            # Branch 3: New anonymous user (existing behaviour)
+            return await self._start_new_conversation(request)
 
-            # Optionally generate speech for greeting
-            audio_url = None
-            if self.settings.ENABLE_TEXT_TO_SPEECH:
-                try:
-                    audio_data = await self.speech_service.synthesize_speech(greeting_text)
-                    # In production, you would upload to storage and return URL
-                    audio_url = None
-                except Exception as e:
-                    logger.warning(f"Failed to synthesize greeting speech: {e}")
-
-            logger.info(f"Started conversation: {conversation_id}")
-
-            return ConversationStartResponse(
-                conversation_id=conversation_id,
-                employee_profile_id=employee_profile.id,
-                greeting_message=greeting_text,
-                audio_url=audio_url
-            )
-
+        except ConversationError:
+            raise
         except Exception as e:
             logger.error(f"Failed to start conversation: {e}")
             raise ConversationError(
                 f"Failed to start conversation: {str(e)}",
                 details={"error": str(e)}
             )
+
+    async def _start_new_conversation(
+        self,
+        request: ConversationStartRequest
+    ) -> ConversationStartResponse:
+        """
+        Start a brand-new conversation (original behaviour).
+
+        Args:
+            request: Conversation start request
+
+        Returns:
+            Conversation start response with greeting
+        """
+        logger.info("Starting new employee conversation")
+
+        conversation_id = uuid4()
+
+        profile_data = EmployeeProfileCreate(
+            conversation_id=conversation_id,
+            employee_id=request.employee_id,
+            employee_email=request.employee_email,
+            source_channel=request.source_channel
+        )
+
+        employee_profile = await self.storage_service.create_employee_profile(profile_data)
+
+        greeting_text = await self.openai_service.generate_greeting()
+
+        greeting_msg = ConversationMessageCreate(
+            conversation_id=conversation_id,
+            role=MessageRole.ASSISTANT,
+            content=greeting_text,
+            message_type=MessageType.TEXT
+        )
+        await self.storage_service.save_message(greeting_msg)
+
+        audio_url = None
+        if self.settings.ENABLE_TEXT_TO_SPEECH:
+            try:
+                await self.speech_service.synthesize_speech(greeting_text)
+                audio_url = None
+            except Exception as e:
+                logger.warning(f"Failed to synthesize greeting speech: {e}")
+
+        logger.info(f"Started conversation: {conversation_id}")
+
+        return ConversationStartResponse(
+            conversation_id=conversation_id,
+            employee_profile_id=employee_profile.id,
+            greeting_message=greeting_text,
+            audio_url=audio_url
+        )
+
+    async def _start_returning_user_conversation(
+        self,
+        request: ConversationStartRequest,
+        previous_profile: EmployeeProfile
+    ) -> ConversationStartResponse:
+        """
+        Start a new conversation for a returning user, carrying forward profile data.
+
+        Args:
+            request: Conversation start request
+            previous_profile: Previous profile to carry data from
+
+        Returns:
+            Conversation start response with personalized greeting
+        """
+        logger.info(
+            f"Starting returning-user conversation (carrying from profile {previous_profile.id})"
+        )
+
+        conversation_id = uuid4()
+
+        # Build carried-forward data
+        prev_data = previous_profile.model_dump(exclude_none=True)
+        carry_forward = {
+            field: prev_data[field]
+            for field in self.CARRY_FORWARD_FIELDS
+            if field in prev_data
+        }
+
+        # Override identity fields from request if provided
+        if request.employee_id:
+            carry_forward["employee_id"] = request.employee_id
+        if request.employee_email:
+            carry_forward["employee_email"] = request.employee_email
+
+        profile_data = EmployeeProfileCreate(
+            conversation_id=conversation_id,
+            source_channel=request.source_channel,
+            **carry_forward
+        )
+
+        employee_profile = await self.storage_service.create_employee_profile(profile_data)
+
+        # Calculate initial completeness from carried-forward data
+        profile_dict = employee_profile.model_dump(exclude_none=True)
+        completeness = self.extraction_service.calculate_completeness_score(profile_dict)
+
+        if completeness > 0:
+            await self.storage_service.update_employee_profile(
+                employee_profile.id,
+                EmployeeProfileUpdate(profile_completeness_score=completeness)
+            )
+
+        # Generate personalized greeting
+        greeting_text = await self.openai_service.generate_returning_user_greeting(
+            profile_dict
+        )
+
+        greeting_msg = ConversationMessageCreate(
+            conversation_id=conversation_id,
+            role=MessageRole.ASSISTANT,
+            content=greeting_text,
+            message_type=MessageType.TEXT
+        )
+        await self.storage_service.save_message(greeting_msg)
+
+        # Count previous completed conversations
+        counts = await self.storage_service.get_conversation_count_for_employee(
+            employee_id=request.employee_id,
+            employee_email=request.employee_email
+        )
+        previous_completed = counts.get("completed", 0)
+
+        audio_url = None
+        if self.settings.ENABLE_TEXT_TO_SPEECH:
+            try:
+                await self.speech_service.synthesize_speech(greeting_text)
+                audio_url = None
+            except Exception as e:
+                logger.warning(f"Failed to synthesize greeting speech: {e}")
+
+        logger.info(f"Started returning-user conversation: {conversation_id}")
+
+        return ConversationStartResponse(
+            conversation_id=conversation_id,
+            employee_profile_id=employee_profile.id,
+            greeting_message=greeting_text,
+            audio_url=audio_url,
+            is_returning_user=True,
+            previous_conversation_count=previous_completed,
+            profile_completeness=completeness,
+        )
+
+    async def resume_conversation(
+        self,
+        conversation_id: UUID
+    ) -> ConversationStartResponse:
+        """
+        Resume an in-progress conversation.
+
+        Args:
+            conversation_id: Conversation ID to resume
+
+        Returns:
+            Conversation start response with resume greeting
+
+        Raises:
+            ConversationNotFoundError: If conversation not found
+            ConversationError: If conversation cannot be resumed
+        """
+        logger.info(f"Resuming conversation: {conversation_id}")
+
+        employee_profile = await self.storage_service.get_by_conversation_id(conversation_id)
+        if not employee_profile:
+            raise ConversationNotFoundError(str(conversation_id))
+
+        # Validate status
+        if employee_profile.conversation_status != ConversationStatus.IN_PROGRESS:
+            raise ConversationError(
+                f"Cannot resume conversation with status '{employee_profile.conversation_status.value}'. "
+                f"Only in-progress conversations can be resumed.",
+                details={
+                    "conversation_id": str(conversation_id),
+                    "current_status": employee_profile.conversation_status.value
+                }
+            )
+
+        # Reset timeout by updating conversation_started_at
+        await self.storage_service.update_employee_profile(
+            employee_profile.id,
+            EmployeeProfileUpdate(conversation_started_at=datetime.utcnow())
+        )
+
+        # Fetch recent messages for context
+        messages = await self.storage_service.get_conversation_history(
+            conversation_id, limit=5
+        )
+        api_messages = self.openai_service.build_conversation_history(messages)
+
+        # Generate resume greeting
+        profile_dict = employee_profile.model_dump(exclude_none=True)
+        greeting_text = await self.openai_service.generate_resume_greeting(
+            profile_dict, api_messages
+        )
+
+        # Save greeting as assistant message
+        greeting_msg = ConversationMessageCreate(
+            conversation_id=conversation_id,
+            role=MessageRole.ASSISTANT,
+            content=greeting_text,
+            message_type=MessageType.TEXT
+        )
+        await self.storage_service.save_message(greeting_msg)
+
+        logger.info(f"Resumed conversation: {conversation_id}")
+
+        return ConversationStartResponse(
+            conversation_id=conversation_id,
+            employee_profile_id=employee_profile.id,
+            greeting_message=greeting_text,
+            is_resumed=True,
+            profile_completeness=employee_profile.profile_completeness_score,
+        )
+
+    async def _abandon_conversation(self, profile: EmployeeProfile) -> None:
+        """
+        Mark an in-progress conversation as abandoned.
+
+        Args:
+            profile: The employee profile to abandon
+        """
+        logger.info(f"Abandoning conversation: {profile.conversation_id}")
+
+        await self.storage_service.update_employee_profile(
+            profile.id,
+            EmployeeProfileUpdate(
+                conversation_status=ConversationStatus.ABANDONED,
+                conversation_completed_at=datetime.utcnow()
+            )
+        )
+
+    async def lookup_employee(
+        self,
+        employee_id: Optional[str] = None,
+        employee_email: Optional[str] = None
+    ) -> EmployeeLookupResponse:
+        """
+        Look up an employee's conversation history.
+
+        Args:
+            employee_id: PS Employee ID
+            employee_email: Employee email
+
+        Returns:
+            EmployeeLookupResponse with conversation history
+        """
+        profiles, total = await self.storage_service.find_employee_profiles_by_identifier(
+            employee_id=employee_id,
+            employee_email=employee_email
+        )
+
+        if not profiles:
+            return EmployeeLookupResponse(
+                found=False,
+                employee_id=employee_id,
+                employee_email=employee_email
+            )
+
+        latest_completed = await self.storage_service.get_latest_completed_profile(
+            employee_id=employee_id,
+            employee_email=employee_email
+        )
+
+        in_progress = await self.storage_service.get_in_progress_conversation(
+            employee_id=employee_id,
+            employee_email=employee_email
+        )
+
+        counts = await self.storage_service.get_conversation_count_for_employee(
+            employee_id=employee_id,
+            employee_email=employee_email
+        )
+
+        # Build conversation summaries
+        conversations = [
+            ConversationSummaryItem(
+                conversation_id=p.conversation_id,
+                profile_id=p.id,
+                conversation_status=p.conversation_status,
+                profile_completeness_score=p.profile_completeness_score,
+                conversation_started_at=p.conversation_started_at,
+                conversation_completed_at=p.conversation_completed_at,
+                total_messages=p.total_messages,
+            )
+            for p in profiles
+        ]
+
+        # Use the first profile (most recent) for employee name
+        first = profiles[0]
+
+        return EmployeeLookupResponse(
+            found=True,
+            employee_id=first.employee_id,
+            employee_email=first.employee_email,
+            employee_name=first.employee_name,
+            latest_profile=latest_completed,
+            conversation_counts=counts,
+            conversations=conversations,
+            has_in_progress=in_progress is not None,
+            in_progress_conversation_id=(
+                in_progress.conversation_id if in_progress else None
+            ),
+        )
 
     async def send_message(
         self,

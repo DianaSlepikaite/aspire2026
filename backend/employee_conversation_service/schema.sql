@@ -149,3 +149,20 @@ CREATE INDEX idx_employee_conversation_messages_created_at
 
 CREATE INDEX idx_employee_extraction_history_conversation_id
   ON employee_agent.employee_extraction_history(conversation_id);
+
+-- Employee lookup indexes (for returning user support)
+CREATE INDEX idx_employee_profiles_employee_id
+  ON employee_agent.employee_profiles(employee_id)
+  WHERE employee_id IS NOT NULL;
+
+CREATE INDEX idx_employee_profiles_employee_email
+  ON employee_agent.employee_profiles(employee_email)
+  WHERE employee_email IS NOT NULL;
+
+CREATE INDEX idx_employee_profiles_employee_id_completed
+  ON employee_agent.employee_profiles(employee_id, conversation_completed_at DESC)
+  WHERE conversation_status = 'completed';
+
+CREATE INDEX idx_employee_profiles_employee_email_completed
+  ON employee_agent.employee_profiles(employee_email, conversation_completed_at DESC)
+  WHERE conversation_status = 'completed';
