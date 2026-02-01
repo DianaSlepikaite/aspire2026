@@ -46,20 +46,23 @@ CREATE TABLE client_agent.client_needs (
   timeline_duration_weeks INTEGER,
   timeline_flexibility VARCHAR,
 
-  -- Priority
-  urgency_level VARCHAR,
-  priority_score INTEGER CHECK (priority_score BETWEEN 1 AND 10),
-  start_date_importance VARCHAR,
+    -- Urgency and Priority
+    urgency_level VARCHAR(50), -- low, medium, high, critical
+    priority_score INTEGER CHECK (priority_score BETWEEN 1 AND 10),
+    start_date_importance VARCHAR(50), -- flexible, preferred, mandatory
 
-  -- Work setup
-  work_location VARCHAR,
-  work_location_details JSONB,
-  work_hours_requirement VARCHAR,
+    -- Work Arrangement
+    work_location VARCHAR(100), -- remote, onsite, hybrid
+    work_location_details JSONB, -- {"city": "New York", "country": "USA", "timezone": "EST"}
+    work_hours_requirement VARCHAR(100), -- flexible, business_hours, overlap_required
 
-  -- Additional requirements
-  team_size_needed INTEGER,
-  collaboration_tools JSONB,
-  communication_preferences JSONB,
+    -- Additional Requirements
+    team_size_needed INTEGER,
+    collaboration_tools JSONB, -- ["Slack", "Jira", "GitHub", ...]
+    communication_preferences JSONB,
+
+    -- Roles & Disciplines
+    required_roles JSONB, -- [{"category": "technology_engineering", "evidence": "cloud engineering", "description": "...", "count": 2}, ...]
 
   -- AI insights
   needs_summary TEXT,
@@ -77,9 +80,148 @@ CREATE TABLE client_agent.client_needs (
   conversation_transcript JSONB,
   raw_audio_references JSONB,
 
-  -- Metadata
-  source_channel VARCHAR DEFAULT 'web',
-  language VARCHAR DEFAULT 'en',
-  tags JSONB,
-  notes TEXT
+    -- Metadata
+    source_channel VARCHAR(50) DEFAULT 'web', -- web, mobile, api
+    language VARCHAR(10) DEFAULT 'en',
+    tags JSONB,
+    notes TEXT,
+
+    -- Search and Indexing
+    search_vector tsvector GENERATED ALWAYS AS (
+        to_tsvector('english',
+            COALESCE(project_title, '') || ' ' ||
+            COALESCE(project_description, '') || ' ' ||
+            COALESCE(needs_summary, '')
+        )
+    ) STORED
 );
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_client_needs_conversation_id ON client_needs(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_client_needs_status ON client_needs(conversation_status);
+CREATE INDEX IF NOT EXISTS idx_client_needs_created_at ON client_needs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_client_needs_urgency ON client_needs(urgency_level);
+CREATE INDEX IF NOT EXISTS idx_client_needs_search_vector ON client_needs USING GIN(search_vector);
+CREATE INDEX IF NOT EXISTS idx_client_needs_skills ON client_needs USING GIN(required_skills);
+
+-- Trigger for updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_client_needs_updated_at
+BEFORE UPDATE ON client_needs
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Table: conversation_messages
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    role VARCHAR(50) NOT NULL, -- user, assistant, system
+    content TEXT NOT NULL,
+    message_type VARCHAR(50) DEFAULT 'text', -- text, speech, system
+
+    -- Speech-specific fields
+    audio_url TEXT,
+    audio_duration_seconds DECIMAL(8, 2),
+    transcription_confidence DECIMAL(3, 2),
+
+    -- Metadata
+    tokens_used INTEGER,
+    model_version VARCHAR(100),
+    processing_time_ms INTEGER,
+
+    CONSTRAINT fk_conversation
+        FOREIGN KEY (conversation_id)
+        REFERENCES client_needs(conversation_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_conversation_id ON conversation_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_created_at ON conversation_messages(created_at);
+
+-- Table: extraction_history (tracks incremental extraction)
+CREATE TABLE IF NOT EXISTS extraction_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    extracted_field VARCHAR(100) NOT NULL,
+    extracted_value JSONB NOT NULL,
+    confidence_score DECIMAL(3, 2),
+    extraction_method VARCHAR(50), -- direct_question, inference, clarification
+
+    CONSTRAINT fk_extraction_conversation
+        FOREIGN KEY (conversation_id)
+        REFERENCES client_needs(conversation_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_extraction_history_conversation_id ON extraction_history(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_extraction_history_created_at ON extraction_history(created_at);
+
+-- Table: intake_packages (client data ingestion)
+CREATE TABLE IF NOT EXISTS intake_packages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    processed_at TIMESTAMP WITH TIME ZONE,
+
+    -- Status and Type
+    status VARCHAR(50) DEFAULT 'pending', -- pending, processing, completed, failed
+    source_type VARCHAR(50) NOT NULL, -- pdf, text, audio, video, email, form, chat_export, other
+
+    -- Client Information
+    client_name VARCHAR(255),
+    client_email VARCHAR(255),
+
+    -- Content
+    raw_content TEXT, -- Original unprocessed content
+    normalized_content JSONB, -- Structured normalized content
+
+    -- Metadata
+    metadata JSONB, -- {file_name, file_size_bytes, mime_type, language, uploaded_by, tags, custom_fields}
+
+    -- Processing
+    processing_notes TEXT,
+    error_message TEXT,
+    audit_trail JSONB, -- Array of processing steps with timestamps
+
+    -- Linking
+    client_need_id UUID, -- Link to extracted client need
+
+    CONSTRAINT fk_intake_client_need
+        FOREIGN KEY (client_need_id)
+        REFERENCES client_needs(id)
+        ON DELETE SET NULL
+);
+
+-- Indexes for intake_packages
+CREATE INDEX IF NOT EXISTS idx_intake_packages_status ON intake_packages(status);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_source_type ON intake_packages(source_type);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_created_at ON intake_packages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_client_email ON intake_packages(client_email);
+CREATE INDEX IF NOT EXISTS idx_intake_packages_client_need_id ON intake_packages(client_need_id);
+
+-- Trigger for updated_at on intake_packages
+CREATE TRIGGER update_intake_packages_updated_at
+BEFORE UPDATE ON intake_packages
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Enable Row Level Security (optional, for production)
+-- ALTER TABLE client_needs ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE conversation_messages ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE extraction_history ENABLE ROW LEVEL SECURITY;
+
+-- Create policies as needed for your security requirements
+-- Example policy (customize based on your auth setup):
+-- CREATE POLICY "Enable read access for authenticated users" ON client_needs
+--     FOR SELECT USING (auth.role() = 'authenticated');

@@ -17,6 +17,11 @@ python-dotenv>=1.0.0
 httpx>=0.24.0
 tenacity>=8.2.0
 python-json-logger>=2.0.0
+pypdf>=3.17.0
+
+# LangChain for Agent
+langchain>=0.1.0
+langchain-openai>=0.0.5
 email-validator>=2.1.0
 
 # Document parsing
