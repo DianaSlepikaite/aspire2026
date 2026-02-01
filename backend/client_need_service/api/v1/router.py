@@ -12,6 +12,7 @@ from client_need_service.api.v1.endpoints import (
     speech_websocket,
     intake,
     agent,
+    matching,
 )
 
 api_router = APIRouter()
@@ -35,3 +36,5 @@ api_router.include_router(
 api_router.include_router(intake.router, prefix="/intake", tags=["intake"])
 
 api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
+
+api_router.include_router(matching.router, prefix="/matching", tags=["matching"])

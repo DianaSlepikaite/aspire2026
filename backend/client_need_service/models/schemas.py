@@ -606,3 +606,74 @@ class DetailedHealthCheck(BaseModel):
     timestamp: datetime
     services: List[ServiceStatus]
     version: str = "1.0.0"
+
+
+# Matching Agent Schemas
+
+
+class SkillMatch(BaseModel):
+    """Details about a skill match."""
+
+    skill: str = Field(..., description="Skill name")
+    required: bool = Field(..., description="Whether this skill is required")
+    candidate_has: bool = Field(..., description="Whether candidate has this skill")
+    proficiency_level: Optional[str] = Field(None, description="Candidate's proficiency level")
+
+
+class MatchExplanation(BaseModel):
+    """Detailed explanation of why a candidate matches."""
+
+    strengths: List[str] = Field(default_factory=list, description="Candidate strengths for this role")
+    skill_matches: List[SkillMatch] = Field(default_factory=list, description="Detailed skill matching")
+    gaps: List[str] = Field(default_factory=list, description="Missing skills or requirements")
+    additional_notes: Optional[str] = Field(None, description="Additional context or notes")
+
+
+class CandidateMatch(BaseModel):
+    """A single candidate match result."""
+
+    employee_profile_id: UUID = Field(..., description="ID of the matched employee profile")
+    employee_name: str = Field(..., description="Employee name")
+    employee_email: Optional[str] = Field(None, description="Employee email")
+    match_score: int = Field(..., ge=0, le=100, description="Overall match score (0-100)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="AI confidence in this match")
+    explanation: MatchExplanation = Field(..., description="Detailed match explanation")
+    rank: int = Field(..., ge=1, description="Ranking position in results")
+
+    # Profile highlights
+    experience_years: Optional[int] = Field(None, description="Years of experience")
+    key_skills: List[str] = Field(default_factory=list, description="Candidate's key skills")
+    current_availability: Optional[str] = Field(None, description="Availability status")
+
+
+class MatchRequest(BaseModel):
+    """Request to find matching candidates for a client need."""
+
+    client_need_id: UUID = Field(..., description="ID of the client need to match against")
+    max_results: int = Field(default=10, ge=1, le=50, description="Maximum number of results to return")
+    min_match_score: int = Field(default=50, ge=0, le=100, description="Minimum match score threshold")
+    filters: Optional[Dict[str, Any]] = Field(default=None, description="Additional filtering criteria")
+
+
+class MatchResponse(BaseModel):
+    """Response with ranked candidate matches."""
+
+    client_need_id: UUID = Field(..., description="ID of the client need")
+    total_candidates_evaluated: int = Field(..., description="Total number of candidates evaluated")
+    matches: List[CandidateMatch] = Field(..., description="Ranked list of matching candidates")
+    generated_at: datetime = Field(default_factory=datetime.utcnow, description="When matches were generated")
+    ai_model: str = Field(default="gpt-4", description="AI model used for matching")
+
+
+class SavedMatchResult(BaseModel):
+    """Saved match result for audit trail."""
+
+    id: UUID = Field(..., description="Match result ID")
+    client_need_id: UUID = Field(..., description="Client need ID")
+    employee_profile_id: UUID = Field(..., description="Employee profile ID")
+    match_score: int = Field(..., description="Match score")
+    confidence: float = Field(..., description="Confidence level")
+    explanation: Dict[str, Any] = Field(..., description="Match explanation as JSON")
+    rank: int = Field(..., description="Ranking position")
+    created_at: datetime = Field(..., description="When match was created")
+    created_by: Optional[str] = Field(None, description="Who triggered the matching")
