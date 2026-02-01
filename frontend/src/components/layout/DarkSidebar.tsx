@@ -18,6 +18,7 @@ import {
   processEmployeeUpload,
   sendEmployeeMessage,
   startEmployeeConversation,
+  synthesizeEmployeeSpeech,
 } from "@/lib/employeeApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEmployeeContext } from "@/context/EmployeeContext";
@@ -70,6 +71,7 @@ export function DarkSidebar({
   const recognitionRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const careerFileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const queryClient = useQueryClient();
 
   const uploadText = useUploadIntakeText();
@@ -96,7 +98,7 @@ export function DarkSidebar({
       const transcript = event.results?.[0]?.[0]?.transcript || "";
       if (transcript) {
         setChatInput(transcript);
-        void handleSendMessage(transcript);
+        void handleSendMessage(transcript, "speech");
       }
     };
 
@@ -121,7 +123,16 @@ export function DarkSidebar({
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [chatMessages, aiState, hasConversationStarted]);
 
-  async function handleSendMessage(messageOverride?: string) {
+  useEffect(() => {
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+    };
+  }, []);
+
+  async function handleSendMessage(messageOverride?: string, messageType: "text" | "speech" = "text") {
     const message = (messageOverride ?? chatInput).trim();
     if (!message) return;
 
@@ -151,14 +162,40 @@ export function DarkSidebar({
             }
           }
 
-          const response = await sendEmployeeMessage(activeConversationId, { message, message_type: "text" });
+          const response = await sendEmployeeMessage(activeConversationId, { message, message_type: messageType });
           setChatMessages((prev) => [...prev, { role: "assistant", content: response.assistant_message }]);
           if (activeProfileId) {
             queryClient.invalidateQueries({ queryKey: ["employee-profile", activeProfileId] });
             queryClient.invalidateQueries({ queryKey: ["employee-documents", activeProfileId] });
           }
-          setAiState("talking");
-          window.setTimeout(() => setAiState("idle"), 1200);
+          if (messageType === "speech") {
+            setAiState("talking");
+            try {
+              const audioBlob = await synthesizeEmployeeSpeech(response.assistant_message);
+              if (audioPlayerRef.current) {
+                audioPlayerRef.current.pause();
+                audioPlayerRef.current = null;
+              }
+              const url = URL.createObjectURL(audioBlob);
+              const audio = new Audio(url);
+              audioPlayerRef.current = audio;
+              audio.onended = () => {
+                URL.revokeObjectURL(url);
+                setAiState("idle");
+              };
+              audio.onerror = () => {
+                URL.revokeObjectURL(url);
+                setAiState("idle");
+              };
+              void audio.play();
+            } catch (error) {
+              console.error("Speech synthesis failed.", error);
+              setAiState("idle");
+            }
+          } else {
+            setAiState("talking");
+            window.setTimeout(() => setAiState("idle"), 1200);
+          }
           return;
         } catch (conversationError) {
           console.error("Employee conversation failed.", conversationError);

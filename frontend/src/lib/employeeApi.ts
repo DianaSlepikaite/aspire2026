@@ -116,6 +116,25 @@ export async function sendEmployeeMessage(
   return handleResponse<EmployeeMessageResponse>(response);
 }
 
+export async function synthesizeEmployeeSpeech(text: string, voiceName?: string) {
+  const url = buildUrl("/api/v1/speech/synthesize");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, voice_name: voiceName }),
+  });
+  if (!response.ok) {
+    let details: unknown = null;
+    try {
+      details = await response.json();
+    } catch {
+      details = await response.text();
+    }
+    throw new Error(typeof details === "string" ? details : JSON.stringify(details));
+  }
+  return response.blob();
+}
+
 export async function getEmployeeProfile(profileId: string) {
   const url = buildUrl(`/api/v1/employee-profiles/${profileId}`);
   const response = await fetch(url);
