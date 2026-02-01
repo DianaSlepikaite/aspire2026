@@ -11,11 +11,20 @@ if [[ "$VIRTUAL_ENV" == "" ]]; then
     source backend/venv/bin/activate
 fi
 
-# Stop any running instances
+# Stop any running instances (by process name and by port so ports are freed)
 echo "Stopping any existing services..."
 pkill -f "uvicorn client_need_service.main:app" 2>/dev/null
 pkill -f "uvicorn employee_conversation_service.main:app" 2>/dev/null
-sleep 2
+# Free ports 8000 and 8001 in case something else is bound
+for port in 8000 8001; do
+  pid=$(lsof -ti:"$port" 2>/dev/null)
+  if [[ -n "$pid" ]]; then
+    echo "   Killing process on port $port (PID: $pid)"
+    kill -9 $pid 2>/dev/null || true
+  fi
+done
+echo "   Waiting for ports to be released..."
+sleep 5
 
 # Start Client Need Service (port 8000)
 echo -e "\n📋 Starting Client Need Service on port 8000..."

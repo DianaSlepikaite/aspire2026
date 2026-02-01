@@ -79,3 +79,41 @@ DROP TRIGGER IF EXISTS update_employee_profiles_updated_at ON employee_profiles;
 CREATE TRIGGER update_employee_profiles_updated_at
     BEFORE UPDATE ON employee_profiles
     FOR EACH ROW EXECUTE PROCEDURE employee_update_updated_at();
+
+-- Table: employee_conversations (conversation sessions for profile building)
+CREATE TABLE IF NOT EXISTS employee_conversations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL UNIQUE,
+    employee_profile_id UUID REFERENCES employee_profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    conversation_status VARCHAR(50) DEFAULT 'in_progress',
+    total_messages INTEGER DEFAULT 0,
+    conversation_started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    conversation_completed_at TIMESTAMP WITH TIME ZONE,
+    source_channel VARCHAR(50) DEFAULT 'web'
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_conversations_conversation_id ON employee_conversations(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_employee_conversations_profile_id ON employee_conversations(employee_profile_id);
+CREATE INDEX IF NOT EXISTS idx_employee_conversations_status ON employee_conversations(conversation_status);
+
+-- Table: employee_conversation_messages
+CREATE TABLE IF NOT EXISTS employee_conversation_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES employee_conversations(conversation_id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    role VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    message_type VARCHAR(50) DEFAULT 'text'
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_conversation_messages_conversation_id ON employee_conversation_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_employee_conversation_messages_created_at ON employee_conversation_messages(created_at);
+
+DROP TRIGGER IF EXISTS update_employee_conversations_updated_at ON employee_conversations;
+CREATE TRIGGER update_employee_conversations_updated_at
+    BEFORE UPDATE ON employee_conversations
+    FOR EACH ROW EXECUTE PROCEDURE employee_update_updated_at();
