@@ -1,0 +1,570 @@
+import { useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  useEmployeeDocuments,
+  useEmployeeProfile,
+  useEmployeeUpload,
+  useEmployeeProfileUpdate,
+  useEmployeeDocumentDelete,
+} from "@/hooks/useEmployee";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEmployeeContext } from "@/context/EmployeeContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Briefcase,
+  Building2,
+  Calendar,
+  Eye,
+  FileText,
+  Github,
+  Link2,
+  Linkedin,
+  Mail,
+  MapPin,
+  Plus,
+  Phone,
+  RefreshCw,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
+
+const coreProfile = {
+  fullName: "Sarah Jenkins",
+  title: "Senior Project Manager",
+  department: "Staffing Tech Div.",
+  manager: "Alicia Romero",
+  location: "Austin, TX",
+  email: "sarah.jenkins@aspire.io",
+  phone: "+1 (512) 555-0184",
+  startDate: "April 14, 2021",
+  employmentType: "Full-time",
+  summary:
+    "Program leader focused on cross-functional delivery, portfolio health, and stakeholder alignment across enterprise initiatives.",
+  strengths: "Agile delivery, executive reporting, risk mitigation, data storytelling, vendor management.",
+  goals: "Move into Director-level program leadership within 18 months.",
+  topSkills: ["Agile Leadership", "Data Visualization", "Stakeholder Mgmt", "Python", "SQL", "Team Building", "Scrum"],
+  certifications: ["PMP (Active)", "CSM", "ICAgile ICP-APM"],
+  education: [
+    { school: "University of Texas at Austin", degree: "B.S. Information Systems", year: "2016" },
+    { school: "Kellogg Executive Education", degree: "Leadership in Digital Transformation", year: "2022" },
+  ],
+  experienceHighlights: [
+    "Led a $12M enterprise migration program, achieving 18% delivery acceleration.",
+    "Standardized program reporting for 9 global teams, reducing status churn by 30%.",
+    "Mentored 6 project leads and built succession plans for critical initiatives.",
+  ],
+};
+
+const integrations = [
+  {
+    name: "LinkedIn",
+    description: "Sync roles, endorsements, and profile summary.",
+    icon: Linkedin,
+    connected: true,
+    handle: "linkedin.com/in/sarah-jenkins",
+  },
+  {
+    name: "GitHub",
+    description: "Pull repositories and contribution signals.",
+    icon: Github,
+    connected: false,
+    handle: "github.com/sarahjenkins",
+  },
+  {
+    name: "Portfolio",
+    description: "External project showcase or personal site.",
+    icon: Link2,
+    connected: false,
+    handle: "sarahjenkins.io",
+  },
+];
+
+export default function Core() {
+  const { employeeProfileId, setEmployeeProfileId, conversationId } = useEmployeeContext();
+  const { data: profile } = useEmployeeProfile(employeeProfileId);
+  const { data: documents = [] } = useEmployeeDocuments(employeeProfileId);
+  const uploadMutation = useEmployeeUpload();
+  const profileUpdateMutation = useEmployeeProfileUpdate();
+  const documentDeleteMutation = useEmployeeDocumentDelete();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
+  const [skillInput, setSkillInput] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const pageSize = 5;
+
+  const displayProfile = {
+    fullName: profile?.full_name ?? coreProfile.fullName,
+    email: profile?.email ?? coreProfile.email,
+    phone: profile?.phone ?? coreProfile.phone,
+    summary: profile?.summary ?? coreProfile.summary,
+    skills: profile?.skills ?? coreProfile.topSkills,
+    certifications: profile?.certifications ?? coreProfile.certifications,
+    education: profile?.education ?? coreProfile.education,
+    experience: profile?.experience ?? coreProfile.experienceHighlights,
+  };
+
+  function handleFileAction(fileItem: (typeof documents)[number]) {
+    setSelectedDocId(fileItem.id);
+    setPreviewText(fileItem.raw_text ?? null);
+  }
+
+  function closePreview() {
+    setPreviewText(null);
+    setSelectedDocId(null);
+  }
+
+  useEffect(() => {
+    const nextSkills = Array.isArray(displayProfile.skills)
+      ? displayProfile.skills.filter(Boolean)
+      : [];
+    setSkillsDraft(nextSkills);
+  }, [displayProfile.skills]);
+
+  function addSkill() {
+    const value = skillInput.trim();
+    if (!value) return;
+    if (skillsDraft.some((skill) => skill.toLowerCase() === value.toLowerCase())) {
+      setSkillInput("");
+      return;
+    }
+    setSkillsDraft((prev) => [...prev, value]);
+    setSkillInput("");
+  }
+
+  function removeSkill(skill: string) {
+    setSkillsDraft((prev) => prev.filter((item) => item !== skill));
+  }
+
+  async function handleSaveChanges() {
+    if (!employeeProfileId) return;
+    setIsSaving(true);
+    try {
+      await profileUpdateMutation.mutateAsync({
+        profileId: employeeProfileId,
+        payload: {
+          skills: skillsDraft,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ["employee-profile", employeeProfileId] });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function formatExperienceItem(item: unknown) {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      const title = String(record.title ?? "").trim();
+      const company = String(record.company ?? "").trim();
+      const years = String(record.years ?? "").trim();
+      const description = String(record.description ?? "").trim();
+      const headerParts = [title, company].filter(Boolean).join(" — ");
+      const metaParts = [years].filter(Boolean).join(" ");
+      return [headerParts, metaParts, description].filter(Boolean).join(" • ");
+    }
+    return "";
+  }
+
+  const totalPages = Math.max(1, Math.ceil(documents.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const pagedDocuments = documents.slice(startIndex, startIndex + pageSize);
+  const selectedDoc = documents.find((doc) => doc.id === selectedDocId) ?? null;
+
+  return (
+    <section className="space-y-8">
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <h3 className="text-2xl font-bold">Core Employee Profile</h3>
+          <p className="text-muted-foreground mt-1">
+            Synced from agent insights and enriched by your edits. Last sync: Jan 12, 2024.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="secondary" className="font-semibold">
+            <RefreshCw className="size-4 mr-2" />
+            Sync From Agent
+          </Button>
+          <Button className="font-semibold" onClick={handleSaveChanges} disabled={isSaving || !employeeProfileId}>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-semibold">Personal & Contact</h4>
+            <Badge variant="secondary">Editable</Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Full Name</label>
+              <Input defaultValue={displayProfile.fullName} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Location</label>
+              <div className="relative">
+                <MapPin className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input className="pl-9" defaultValue={coreProfile.location} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Email</label>
+              <div className="relative">
+                <Mail className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input className="pl-9" defaultValue={displayProfile.email} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Phone</label>
+              <div className="relative">
+                <Phone className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input className="pl-9" defaultValue={displayProfile.phone} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-semibold">Role & Org</h4>
+            <Badge variant="secondary">Editable</Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Title</label>
+              <div className="relative">
+                <Briefcase className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input className="pl-9" defaultValue={coreProfile.title} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Department</label>
+              <div className="relative">
+                <Building2 className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input className="pl-9" defaultValue={coreProfile.department} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Manager</label>
+              <Input defaultValue={coreProfile.manager} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Start Date</label>
+              <div className="relative">
+                <Calendar className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input className="pl-9" defaultValue={coreProfile.startDate} />
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Employment Type</label>
+              <Input defaultValue={coreProfile.employmentType} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-semibold">Summary & Goals</h4>
+          <Badge variant="secondary">Editable</Badge>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">Professional Summary</label>
+            <Textarea defaultValue={displayProfile.summary} className="min-h-[120px]" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">Career Goals</label>
+            <Textarea defaultValue={coreProfile.goals} className="min-h-[120px]" />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground uppercase">Core Strengths</label>
+          <Textarea defaultValue={coreProfile.strengths} className="min-h-[90px]" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-semibold">Skills & Certifications</h4>
+            <Badge variant="secondary">Editable</Badge>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">Top Skills</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {skillsDraft.map((skill) => (
+                <Badge key={skill} variant="outline" className="flex items-center gap-1">
+                  {skill}
+                  <button
+                    type="button"
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => removeSkill(skill)}
+                    aria-label={`Remove ${skill}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <Input
+                value={skillInput}
+                onChange={(event) => setSkillInput(event.target.value)}
+                placeholder="Add a skill"
+              />
+              <Button variant="outline" size="sm" className="font-semibold" onClick={addSkill}>
+                <Plus className="size-3 mr-2" />
+                Add
+              </Button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">Certifications</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {displayProfile.certifications.map((cert) => (
+                <Badge key={cert} variant="secondary">
+                  {cert}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-semibold">Education</h4>
+            <Badge variant="secondary">Editable</Badge>
+          </div>
+          <div className="space-y-4">
+            {displayProfile.education.map((item, idx) => (
+              <div key={idx} className="rounded-xl border border-border p-4 space-y-1">
+                <p className="font-semibold">{String(item.school ?? "Education")}</p>
+                <p className="text-sm text-muted-foreground">{String(item.degree ?? "")}</p>
+                <p className="text-xs text-muted-foreground">{String(item.year ?? "")}</p>
+              </div>
+            ))}
+            <Button variant="outline" className="w-full font-semibold">
+              Add Education
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-semibold">Experience Highlights</h4>
+          <Badge variant="secondary">Editable</Badge>
+        </div>
+        <div className="space-y-3">
+          {displayProfile.experience.map((item, idx) => (
+            <div key={idx} className="flex items-start gap-3 rounded-xl border border-border p-4">
+              <span className="text-xs font-bold text-muted-foreground mt-1">0{idx + 1}</span>
+              <p className="text-sm text-foreground">{formatExperienceItem(item)}</p>
+            </div>
+          ))}
+          <Button variant="outline" className="w-full font-semibold">
+            Add Highlight
+          </Button>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-semibold">Context Files</h4>
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                uploadMutation
+                  .mutateAsync({
+                    file,
+                    employeeProfileId,
+                    conversationId,
+                  })
+                  .then((result) => {
+                    if (result.employee_profile_id) {
+                      setEmployeeProfileId(result.employee_profile_id);
+                      queryClient.invalidateQueries({ queryKey: ["employee-profile", result.employee_profile_id] });
+                      queryClient.invalidateQueries({ queryKey: ["employee-documents", result.employee_profile_id] });
+                    }
+                  })
+                  .catch(() => {
+                    // noop
+                  });
+                event.currentTarget.value = "";
+              }}
+            />
+            <Button variant="outline" className="font-semibold" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="size-4 mr-2" />
+              Upload File
+            </Button>
+          </div>
+        </div>
+        <div className="bg-card rounded-2xl border border-border overflow-hidden">
+          <table className="w-full text-left table-fixed">
+            <thead className="bg-secondary/50 border-b border-border">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-2/5">Document Name</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/5">Type</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/5">Updated</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase text-right w-1/5">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {pagedDocuments.map((fileItem) => (
+                <tr key={fileItem.id} className="hover:bg-secondary/30 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <FileText className="size-4 text-muted-foreground" />
+                      <div>
+                        <span className="font-medium block truncate max-w-[260px]" title={fileItem.file_name ?? ""}>
+                          {fileItem.file_name ?? "Untitled document"}
+                        </span>
+                        {fileItem.size && (
+                          <p className="text-xs text-muted-foreground mt-1">{fileItem.size}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{fileItem.mime_type ?? "Document"}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">
+                    {new Date(fileItem.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "2-digit",
+                      year: "numeric",
+                    })}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-primary"
+                        onClick={() => handleFileAction(fileItem)}
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-primary"
+                        onClick={() => {
+                          documentDeleteMutation
+                            .mutateAsync({ documentId: fileItem.id })
+                            .then(() => {
+                              if (employeeProfileId) {
+                                queryClient.invalidateQueries({
+                                  queryKey: ["employee-documents", employeeProfileId],
+                                });
+                              }
+                            })
+                            .catch(() => {
+                              // noop
+                            });
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="bg-secondary/50 p-4 text-center">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="link"
+                className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={safePage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                variant="link"
+                className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={safePage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-semibold">Integrations</h4>
+          <Badge variant="secondary">Manage</Badge>
+        </div>
+        <div className="space-y-3">
+          {integrations.map((integration) => (
+            <div key={integration.name} className="rounded-xl border border-border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-secondary flex items-center justify-center">
+                    <integration.icon className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">{integration.name}</p>
+                    <p className="text-xs text-muted-foreground">{integration.description}</p>
+                  </div>
+                </div>
+                <Switch defaultChecked={integration.connected} />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Link2 className="size-3" />
+                  {integration.handle}
+                </span>
+                <Button variant="ghost" size="sm" className="text-muted-foreground">
+                  {integration.connected ? "Disconnect" : "Connect"}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Dialog open={Boolean(selectedDocId)} onOpenChange={(open) => !open && closePreview()}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{selectedDoc?.file_name ?? "Document Preview"}</DialogTitle>
+          </DialogHeader>
+          <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground max-h-[70vh] overflow-auto whitespace-pre-wrap">
+            {previewText
+              ? previewText
+              : "Preview unavailable. This document does not have extracted text yet."}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}

@@ -32,7 +32,10 @@ Return a JSON object with these fields (only include fields if information is fo
 Conversation:
 {conversation_text}
 
-Extract all mentioned information. Be thorough and include all skills, technologies, and certifications mentioned."""
+Extract all mentioned information. Be thorough and include all skills, technologies, and certifications mentioned.
+Only include information explicitly present in the conversation text. Do not infer or guess.
+
+Return ONLY valid JSON. Do not include any extra text or markdown."""
 
 
 class SkillExtractionService:
@@ -50,10 +53,15 @@ class SkillExtractionService:
             return {}
 
         # Build conversation text
-        conversation_text = "\n".join([
-            f"{msg.get('role', 'user')}: {msg.get('content', '')}"
-            for msg in messages
-        ])
+        conversation_text = "\n".join(
+            [
+                f"user: {msg.get('content', '')}"
+                for msg in messages
+                if str(msg.get("role", "user")).lower() == "user"
+            ]
+        )
+        if not conversation_text.strip():
+            return {}
 
         prompt = EXTRACTION_PROMPT.format(conversation_text=conversation_text)
 
@@ -66,7 +74,7 @@ class SkillExtractionService:
             content = response.get("content", "")
 
             # Try to parse JSON from the response
-            # OpenAI might wrap it in markdown code blocks
+            # OpenAI might wrap it in markdown code blocks or include extra text
             if "```json" in content:
                 json_start = content.find("```json") + 7
                 json_end = content.find("```", json_start)
@@ -75,6 +83,11 @@ class SkillExtractionService:
                 json_start = content.find("```") + 3
                 json_end = content.find("```", json_start)
                 content = content[json_start:json_end].strip()
+            else:
+                brace_start = content.find("{")
+                brace_end = content.rfind("}")
+                if brace_start != -1 and brace_end != -1 and brace_end > brace_start:
+                    content = content[brace_start : brace_end + 1].strip()
 
             extracted = json.loads(content)
             logger.info(f"Extracted profile data: {list(extracted.keys())}")
@@ -149,3 +162,28 @@ class SkillExtractionService:
             filled_fields += 1
 
         return int((filled_fields / total_fields) * 100)
+
+    def get_missing_fields(self, profile_data: Dict[str, Any]) -> List[str]:
+        """Return a list of missing profile fields."""
+        missing: List[str] = []
+        if not profile_data.get("full_name"):
+            missing.append("full_name")
+        if not profile_data.get("email"):
+            missing.append("email")
+        if not profile_data.get("phone"):
+            missing.append("phone")
+        if not profile_data.get("summary"):
+            missing.append("summary")
+        if not profile_data.get("experience_years"):
+            missing.append("experience_years")
+        if not profile_data.get("skills"):
+            missing.append("skills")
+        if not profile_data.get("certifications"):
+            missing.append("certifications")
+        if not profile_data.get("education"):
+            missing.append("education")
+        if not profile_data.get("experience"):
+            missing.append("experience")
+        if not profile_data.get("preferred_roles"):
+            missing.append("preferred_roles")
+        return missing

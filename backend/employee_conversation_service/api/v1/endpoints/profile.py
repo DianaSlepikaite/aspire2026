@@ -7,7 +7,7 @@ from uuid import UUID
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status, Query
 
-from employee_conversation_service.models.schemas import EmployeeProfile
+from employee_conversation_service.models.schemas import EmployeeProfile, EmployeeProfileUpdate
 from employee_conversation_service.services.storage_service import StorageService
 from employee_conversation_service.core.exceptions import (
     EmployeeProfileNotFoundError,
@@ -56,6 +56,39 @@ async def get_employee_profile(profile_id: UUID):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Failed to retrieve employee profile"},
+        )
+
+
+@router.patch(
+    "/{profile_id}",
+    response_model=EmployeeProfile,
+    status_code=status.HTTP_200_OK,
+    summary="Update employee profile",
+    description="Update employee profile fields",
+    tags=["profiles"],
+)
+async def update_employee_profile(profile_id: UUID, payload: EmployeeProfileUpdate):
+    """Update an employee profile by ID."""
+    try:
+        storage = StorageService()
+        profile = await storage.update_employee_profile(profile_id, payload)
+        return profile
+    except EmployeeProfileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": e.message, "details": e.details},
+        )
+    except StorageError as e:
+        logger.exception("Storage error: %s", e)
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details},
+        )
+    except Exception as e:
+        logger.exception("Unexpected error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to update employee profile"},
         )
 
 

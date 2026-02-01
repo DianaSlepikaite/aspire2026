@@ -351,6 +351,8 @@ class ClientNeedUpdate(ClientNeedBase):
     pass
 
 
+
+
 class ClientNeed(ClientNeedBase):
     """Complete client need model with database fields."""
 
@@ -395,6 +397,21 @@ class ClientNeed(ClientNeedBase):
             }
         },
     }
+
+
+class ClientNeedMessageRequest(BaseModel):
+    """Request to update a client need from a user message."""
+
+    message: str = Field(..., min_length=1, max_length=5000)
+
+
+class ClientNeedMessageResponse(BaseModel):
+    """Response after updating a client need from a message."""
+
+    client_need: ClientNeed
+    profile_completeness: int = Field(ge=0, le=100)
+    missing_fields: List[str]
+    critical_missing_fields: List[str]
 
 
 class ClientNeedList(BaseModel):

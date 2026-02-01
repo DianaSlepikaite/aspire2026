@@ -31,7 +31,7 @@ async def get_db_pool() -> asyncpg.Pool:
         if not settings.has_database_credentials():
             raise ConfigurationError(
                 "Database credentials not configured. "
-                "Please set DATABASE_URL or individual DB settings in environment variables."
+                "Please set DB1 or individual DB settings in environment variables."
             )
 
         try:

@@ -10,10 +10,13 @@ from fastapi import APIRouter, HTTPException, Query, status
 from client_need_service.models.schemas import (
     ClientNeed,
     ClientNeedList,
+    ClientNeedMessageRequest,
+    ClientNeedMessageResponse,
     ClientNeedUpdate
 )
+from client_need_service.services.need_extraction_service import NeedExtractionService
 from client_need_service.services.storage_service import StorageService
-from client_need_service.core.exceptions import ClientNeedNotFoundError, StorageError
+from client_need_service.core.exceptions import ClientNeedNotFoundError, StorageError, ServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +62,28 @@ async def list_client_needs(
             offset=offset
         )
 
+        # Ensure completeness/missing info are up to date for list display
+        extraction_service = NeedExtractionService()
+        refreshed_needs = []
+        for need in client_needs:
+            profile_dict = need.model_dump(exclude_none=True)
+            completeness = extraction_service.calculate_completeness_score(profile_dict)
+            missing_fields = extraction_service.identify_missing_fields(profile_dict)
+            if (
+                completeness != need.profile_completeness_score
+                or (missing_fields and missing_fields != (need.missing_information or []))
+            ):
+                need = await storage_service.update_client_need(
+                    need.id,
+                    ClientNeedUpdate(
+                        profile_completeness_score=completeness,
+                        missing_information=missing_fields
+                    )
+                )
+            refreshed_needs.append(need)
+
         return ClientNeedList(
-            items=client_needs,
+            items=refreshed_needs,
             total=total,
             limit=limit,
             offset=offset
@@ -199,4 +222,75 @@ async def delete_client_need(id: UUID):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Failed to delete client need"}
+        )
+
+
+@router.post(
+    "/{id}/message",
+    response_model=ClientNeedMessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update client need from message",
+    description="Update a client need profile by extracting info from a user message"
+)
+async def update_client_need_from_message(
+    id: UUID,
+    request: ClientNeedMessageRequest
+):
+    """
+    Update a client need profile using a user message.
+
+    Extracts structured fields from the message and updates the existing profile.
+    """
+    try:
+        storage_service = StorageService()
+        extraction_service = NeedExtractionService()
+
+        client_need = await storage_service.get_client_need(id)
+        if not client_need:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": f"Client need not found: {id}"}
+            )
+
+        update, metadata = await extraction_service.extract_needs_from_text(
+            request.message,
+            client_name=client_need.client_name,
+            client_email=client_need.client_email
+        )
+
+        updated_client_need = await storage_service.update_client_need(id, update)
+
+        profile_dict = updated_client_need.model_dump(exclude_none=True)
+        completeness = extraction_service.calculate_completeness_score(profile_dict)
+        missing_fields = extraction_service.identify_missing_fields(profile_dict)
+        critical_missing = extraction_service.identify_critical_missing_fields(profile_dict)
+
+        updated_client_need = await storage_service.update_client_need(
+            id,
+            ClientNeedUpdate(
+                profile_completeness_score=completeness,
+                missing_information=missing_fields
+            )
+        )
+
+        return ClientNeedMessageResponse(
+            client_need=updated_client_need,
+            profile_completeness=completeness,
+            missing_fields=missing_fields,
+            critical_missing_fields=critical_missing
+        )
+
+    except HTTPException:
+        raise
+    except (ServiceError, StorageError) as e:
+        logger.error(f"Failed to update client need from message: {e}")
+        raise HTTPException(
+            status_code=getattr(e, "status_code", status.HTTP_500_INTERNAL_SERVER_ERROR),
+            detail={"error": getattr(e, "message", str(e)), "details": getattr(e, "details", None)}
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error updating client need from message: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to update client need from message"}
         )

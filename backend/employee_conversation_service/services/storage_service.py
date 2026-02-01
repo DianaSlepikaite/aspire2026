@@ -106,6 +106,45 @@ class StorageService:
             return None
         return _doc_from_row(row)
 
+    async def delete_document(self, document_id: UUID) -> None:
+        """Delete an employee document by ID."""
+        doc = await self.get_document(document_id)
+        if not doc:
+            raise DocumentNotFoundError(str(document_id))
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM employee_documents WHERE id = $1",
+                document_id,
+            )
+
+    async def list_documents(
+        self,
+        employee_profile_id: Optional[UUID] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[EmployeeDocument]:
+        """List employee documents, optionally filtered by profile."""
+        pool = await self._get_pool()
+        where_clause = ""
+        values: List[object] = []
+        if employee_profile_id:
+            where_clause = "WHERE employee_profile_id = $1"
+            values.append(employee_profile_id)
+
+        query = f"""
+            SELECT id, file_name, mime_type, raw_text, source,
+                   employee_profile_id, created_at, updated_at
+            FROM employee_documents
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT ${len(values) + 1} OFFSET ${len(values) + 2}
+        """
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query, *values, limit, offset)
+        return [_doc_from_row(row) for row in rows]
+
     async def get_employee_profile(self, profile_id: UUID) -> Optional[EmployeeProfile]:
         """Get an employee profile by ID."""
         pool = await self._get_pool()
@@ -155,6 +194,20 @@ class StorageService:
             created_at=now,
             updated_at=now,
         )
+
+    async def update_document_raw_text(self, document_id: UUID, raw_text: str) -> None:
+        """Update a document's raw_text."""
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE employee_documents
+                SET raw_text = $1, updated_at = NOW()
+                WHERE id = $2
+                """,
+                raw_text,
+                document_id,
+            )
 
     async def create_employee_profile(
         self, data: EmployeeProfileCreate

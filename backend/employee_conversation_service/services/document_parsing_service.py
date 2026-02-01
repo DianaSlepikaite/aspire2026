@@ -4,6 +4,8 @@ Parses uploaded documents (e.g. PDF resume) to raw text so extraction can run.
 """
 
 import logging
+from io import BytesIO
+from zipfile import BadZipFile
 from typing import Optional
 from uuid import UUID
 
@@ -43,6 +45,49 @@ class DocumentParsingService:
         self, file_content: bytes, mime_type: Optional[str] = None
     ) -> str:
         """Parse raw bytes to text (e.g. PDF bytes -> text). Used when content is in memory."""
-        # Stub: real impl would use pypdf for PDF, etc.
-        logger.warning("parse_content stub: no extraction implemented")
+        if not file_content:
+            return ""
+        mime = (mime_type or "").lower()
+        is_pdf = mime == "application/pdf" or file_content[:4] == b"%PDF"
+        is_docx = mime in (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
+        ) or file_content[:2] == b"PK"
+
+        if is_pdf:
+            try:
+                from pypdf import PdfReader
+
+                reader = PdfReader(BytesIO(file_content))
+                parts = []
+                for page in reader.pages:
+                    text = page.extract_text() or ""
+                    if text.strip():
+                        parts.append(text)
+                return "\n".join(parts).strip()
+            except Exception as exc:
+                logger.exception("parse_content (pdf) failed: %s", exc)
+                return ""
+
+        if is_docx:
+            try:
+                from docx import Document
+
+                document = Document(BytesIO(file_content))
+                parts = [p.text for p in document.paragraphs if p.text and p.text.strip()]
+                for table in document.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            cell_text = cell.text.strip()
+                            if cell_text:
+                                parts.append(cell_text)
+                return "\n".join(parts).strip()
+            except BadZipFile as exc:
+                logger.exception("parse_content (docx) failed: %s", exc)
+                return ""
+            except Exception as exc:
+                logger.exception("parse_content (docx) failed: %s", exc)
+                return ""
+
+        logger.warning("parse_content: unsupported mime_type=%s", mime_type)
         return ""

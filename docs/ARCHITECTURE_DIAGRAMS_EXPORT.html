@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASPIRE2026 Architecture Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .diagram-section {
+            background: white;
+            margin: 30px 0;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            page-break-after: always;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            background: white;
+            padding: 20px;
+            border-radius: 4px;
+        }
+        .instructions {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #2980b9;
+        }
+        .instructions ol {
+            margin: 10px 0;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+        @media print {
+            body {
+                background: white;
+            }
+            .diagram-section {
+                box-shadow: none;
+                page-break-after: always;
+            }
+            .instructions {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ASPIRE2026 Application Architecture</h1>
+        <p class="subtitle">AI-Powered Talent Matching Platform</p>
+
+        <div class="instructions">
+            <h3>📸 How to Export Diagrams:</h3>
+            <ol>
+                <li><strong>Screenshot Method (Recommended):</strong> Use your OS screenshot tool to capture each diagram
+                    <ul>
+                        <li>Mac: Cmd + Shift + 4, then drag to select area</li>
+                        <li>Windows: Win + Shift + S, then drag to select area</li>
+                    </ul>
+                </li>
+                <li><strong>Print to PDF:</strong> Press Ctrl/Cmd + P and select "Save as PDF"</li>
+                <li><strong>Browser Screenshot Extensions:</strong> Use extensions like "Full Page Screen Capture" for Chrome</li>
+                <li><strong>Online Tools:</strong> Copy the Mermaid code and use <a href="https://mermaid.live" target="_blank">mermaid.live</a> to export as PNG/SVG</li>
+            </ol>
+        </div>
+
+        <!-- Diagram 1: High-Level Architecture -->
+        <div class="diagram-section">
+            <h2>1. High-Level System Architecture</h2>
+            <div class="mermaid">
+graph TB
+    subgraph "Client Layer"
+        UI[React Frontend<br/>Vite + TypeScript<br/>ShadCN UI]
+    end
+
+    subgraph "Application Layer - Microservices"
+        subgraph "Client Need Service<br/>Port 8000"
+            CNS_API[FastAPI REST API]
+            CNS_WS[WebSocket<br/>Speech Streaming]
+            CNS_CONV[Conversation<br/>Service]
+            CNS_AGENT[Client Need<br/>Agent]
+            CNS_EXTRACT[Need Extraction<br/>Service]
+            CNS_MATCH[Matching Agent<br/>AI-Powered]
+            CNS_SPEECH[Speech Service<br/>Azure TTS/STT]
+            CNS_STORAGE[Storage Service]
+        end
+
+        subgraph "Employee Service<br/>Port 8001"
+            EMP_API[FastAPI REST API]
+            EMP_WS[WebSocket<br/>Speech Streaming]
+            EMP_CONV[Conversation<br/>Service]
+            EMP_EXTRACT[Skill Extraction<br/>Service]
+            EMP_SPEECH[Speech Service<br/>Azure TTS/STT]
+            EMP_RESUME[Resume<br/>Generator]
+            EMP_STORAGE[Storage Service]
+        end
+    end
+
+    subgraph "Data Layer"
+        CLIENT_DB[(PostgreSQL<br/>client_need_db)]
+        EMP_DB[(PostgreSQL<br/>employee_conversation_db)]
+    end
+
+    subgraph "External Services - Azure"
+        AZURE_OPENAI[Azure OpenAI<br/>GPT-4o]
+        AZURE_SPEECH[Azure Speech<br/>TTS/STT]
+    end
+
+    UI -->|HTTP/REST| CNS_API
+    UI -->|HTTP/REST| EMP_API
+    UI -->|WebSocket| CNS_WS
+    UI -->|WebSocket| EMP_WS
+
+    CNS_API --> CNS_CONV
+    CNS_API --> CNS_AGENT
+    CNS_API --> CNS_MATCH
+    CNS_CONV --> CNS_EXTRACT
+    CNS_CONV --> CNS_SPEECH
+    CNS_AGENT --> CNS_EXTRACT
+    CNS_CONV --> CNS_STORAGE
+    CNS_AGENT --> CNS_STORAGE
+    CNS_MATCH --> CNS_STORAGE
+    CNS_STORAGE --> CLIENT_DB
+
+    CNS_EXTRACT --> AZURE_OPENAI
+    CNS_MATCH --> AZURE_OPENAI
+    CNS_SPEECH --> AZURE_SPEECH
+    CNS_AGENT --> AZURE_OPENAI
+
+    EMP_API --> EMP_CONV
+    EMP_CONV --> EMP_EXTRACT
+    EMP_CONV --> EMP_SPEECH
+    EMP_CONV --> EMP_STORAGE
+    EMP_EXTRACT --> EMP_RESUME
+    EMP_STORAGE --> EMP_DB
+
+    EMP_EXTRACT --> AZURE_OPENAI
+    EMP_SPEECH --> AZURE_SPEECH
+
+    CNS_MATCH -->|Cross-DB Query| EMP_DB
+
+    style UI fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    style CNS_API fill:#7CB342,stroke:#558B2F,color:#fff
+    style EMP_API fill:#7CB342,stroke:#558B2F,color:#fff
+    style CNS_MATCH fill:#FFA726,stroke:#F57C00,color:#fff
+    style AZURE_OPENAI fill:#00BCD4,stroke:#0097A7,color:#fff
+    style AZURE_SPEECH fill:#00BCD4,stroke:#0097A7,color:#fff
+    style CLIENT_DB fill:#9C27B0,stroke:#6A1B9A,color:#fff
+    style EMP_DB fill:#9C27B0,stroke:#6A1B9A,color:#fff
+            </div>
+        </div>
+
+        <!-- Diagram 2: Component Architecture -->
+        <div class="diagram-section">
+            <h2>2. Detailed Component Architecture</h2>
+            <div class="mermaid">
+graph LR
+    subgraph "Frontend Application"
+        PAGES[Pages Layer]
+        COMPONENTS[Components Layer]
+        HOOKS[React Hooks]
+        API_CLIENT[API Client<br/>clientNeedApi.ts]
+        STATE[TanStack Query<br/>State Management]
+
+        PAGES --> COMPONENTS
+        PAGES --> HOOKS
+        HOOKS --> API_CLIENT
+        API_CLIENT --> STATE
+    end
+
+    subgraph "Backend Services"
+        REST_API[REST API Layer<br/>FastAPI Routers]
+        SERVICE_LAYER[Service Layer]
+        AGENT_LAYER[AI Agent Layer]
+        DATA_LAYER[Data Access Layer]
+
+        REST_API --> SERVICE_LAYER
+        SERVICE_LAYER --> AGENT_LAYER
+        SERVICE_LAYER --> DATA_LAYER
+    end
+
+    API_CLIENT -->|HTTP/JSON| REST_API
+
+    style PAGES fill:#E3F2FD
+    style API_CLIENT fill:#B2DFDB
+    style REST_API fill:#C8E6C9
+    style AGENT_LAYER fill:#FFE0B2
+            </div>
+        </div>
+
+        <!-- Diagram 3: Matching Flow -->
+        <div class="diagram-section">
+            <h2>3. Client Need Matching Flow</h2>
+            <div class="mermaid">
+sequenceDiagram
+    participant UI as Frontend UI
+    participant CNS as Client Need Service
+    participant EMP_DB as Employee DB
+    participant AOAI as Azure OpenAI
+
+    UI->>CNS: POST /api/v1/matching/find-candidates
+    Note over UI,CNS: { client_need_id, max_results, min_score }
+
+    CNS->>CNS: Get client need details
+    CNS->>EMP_DB: Query employee profiles
+    Note over CNS,EMP_DB: Cross-database query
+
+    EMP_DB-->>CNS: Return employee profiles
+
+    loop For each candidate
+        CNS->>CNS: Pre-filter by skills
+        CNS->>AOAI: Evaluate match with prompt
+        Note over CNS,AOAI: Includes client requirements<br/>and candidate profile
+        AOAI-->>CNS: Match score + explanation
+        CNS->>CNS: Build CandidateMatch object
+    end
+
+    CNS->>CNS: Sort by score, assign ranks
+    CNS-->>UI: Return ranked matches
+    Note over UI,CNS: MatchResponse with detailed<br/>explanations and scores
+            </div>
+        </div>
+
+        <!-- Diagram 4: Employee Profile Building -->
+        <div class="diagram-section">
+            <h2>4. Employee Profile Building Flow</h2>
+            <div class="mermaid">
+sequenceDiagram
+    participant UI as Frontend UI
+    participant EMP as Employee Service
+    participant AOAI as Azure OpenAI
+    participant DB as Employee DB
+
+    UI->>EMP: POST /api/v1/conversation/start
+    EMP->>DB: Create employee profile
+    EMP->>AOAI: Generate greeting
+    EMP-->>UI: conversation_id, greeting
+
+    UI->>EMP: POST /api/v1/conversation/{id}/message
+    Note over UI,EMP: User shares experience
+
+    EMP->>AOAI: Process conversation
+    AOAI-->>EMP: Extract skills/experience
+
+    EMP->>DB: Update employee profile
+    EMP->>EMP: Calculate completeness
+
+    EMP-->>UI: Response + extraction updates
+    Note over UI,EMP: Real-time profile updates
+            </div>
+        </div>
+
+        <!-- Diagram 5: Production Deployment -->
+        <div class="diagram-section">
+            <h2>5. Production Deployment Architecture</h2>
+            <div class="mermaid">
+graph TB
+    subgraph "Production Environment"
+        LB[Load Balancer<br/>Azure Front Door]
+
+        subgraph "Frontend"
+            FE1[Static Site<br/>Azure Static Web Apps]
+        end
+
+        subgraph "Backend - Client Service"
+            CNS1[Client Need Service<br/>Container Instance 1]
+            CNS2[Client Need Service<br/>Container Instance 2]
+        end
+
+        subgraph "Backend - Employee Service"
+            EMP1[Employee Service<br/>Container Instance 1]
+            EMP2[Employee Service<br/>Container Instance 2]
+        end
+
+        subgraph "Data"
+            DB_PRIMARY[(PostgreSQL Primary)]
+            DB_REPLICA[(PostgreSQL Read Replica)]
+            REDIS[(Redis Cache)]
+        end
+
+        subgraph "Azure Services"
+            AZURE_AI[Azure OpenAI]
+            AZURE_SPEECH_SVC[Azure Speech]
+            KEY_VAULT[Azure Key Vault]
+        end
+    end
+
+    LB --> FE1
+    LB --> CNS1
+    LB --> CNS2
+    LB --> EMP1
+    LB --> EMP2
+
+    CNS1 --> DB_PRIMARY
+    CNS2 --> DB_PRIMARY
+    CNS1 --> DB_REPLICA
+    CNS2 --> DB_REPLICA
+    CNS1 --> REDIS
+    CNS2 --> REDIS
+
+    EMP1 --> DB_PRIMARY
+    EMP2 --> DB_PRIMARY
+    EMP1 --> DB_REPLICA
+    EMP2 --> DB_REPLICA
+    EMP1 --> REDIS
+    EMP2 --> REDIS
+
+    CNS1 --> AZURE_AI
+    CNS2 --> AZURE_AI
+    EMP1 --> AZURE_AI
+    EMP2 --> AZURE_AI
+
+    CNS1 --> AZURE_SPEECH_SVC
+    CNS2 --> AZURE_SPEECH_SVC
+    EMP1 --> AZURE_SPEECH_SVC
+    EMP2 --> AZURE_SPEECH_SVC
+
+    CNS1 --> KEY_VAULT
+    CNS2 --> KEY_VAULT
+    EMP1 --> KEY_VAULT
+    EMP2 --> KEY_VAULT
+
+    style LB fill:#FF6B6B
+    style FE1 fill:#4A90E2
+    style REDIS fill:#DC143C,color:#fff
+    style KEY_VAULT fill:#FFD700
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#4A90E2',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#2E5C8A',
+                lineColor: '#6c757d',
+                secondaryColor: '#7CB342',
+                tertiaryColor: '#FFA726'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                useMaxWidth: true,
+                mirrorActors: true
+            }
+        });
+    </script>
+</body>
+</html>

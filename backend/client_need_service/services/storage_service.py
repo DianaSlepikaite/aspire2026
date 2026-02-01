@@ -59,10 +59,13 @@ class StorageService:
 
         data = dict(row)
 
-        # JSONB fields that need parsing
+        # JSONB fields that need parsing (must match jsonb_fields in update_client_need)
         jsonb_fields = [
             "required_skills", "preferred_skills", "collaboration_tools",
-            "key_challenges", "certifications_required", "required_roles"
+            "key_challenges", "certifications_required", "required_roles",
+            "missing_information", "success_criteria", "risk_factors",
+            "communication_preferences", "work_location_details",
+            "conversation_transcript", "raw_audio_references", "tags",
         ]
 
         for field in jsonb_fields:
