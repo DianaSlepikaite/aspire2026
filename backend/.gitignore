@@ -4,65 +4,33 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+dist/
+build/
 
 # Virtual Environment
 venv/
 env/
 ENV/
-env.bak/
-venv.bak/
 
-# Environment Variables
+# Environment variables
 .env
-.env.local
-.env.*.local
+*.env
 
 # IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-*.cover
-.hypothesis/
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_sample.wav
+tts_output.mp3
+tts_output.wav
 
 # Logs
 *.log
-logs/
-
-# Temporary files
-/tmp/
-*.tmp
-*.temp
-
-# Audio files
-/audio/
-*.wav
-*.mp3
-*.ogg
-
-# Database
-*.db
-*.sqlite
