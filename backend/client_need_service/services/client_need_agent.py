@@ -166,6 +166,15 @@ class ClientNeedAgent:
                 critical_missing=critical_missing
             )
 
+            # Persist summary + missing info for frontend display
+            await self.storage_service.update_client_need(
+                client_need.id,
+                ClientNeedUpdate(
+                    needs_summary=summary,
+                    missing_information=missing_fields[:10]
+                )
+            )
+
             logger.info("Agent processing completed successfully")
 
             return {

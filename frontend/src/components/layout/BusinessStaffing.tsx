@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ChevronDown, PlusCircle, Zap } from "lucide-react";
@@ -46,10 +46,7 @@ export default function BusinessStaffing({
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
-  const runMap = useMemo(
-    () => new Map(agentRuns.filter((run) => run.client_need_id).map((run) => [run.client_need_id!, run])),
-    [agentRuns]
-  );
+  const runMap = new Map(agentRuns.filter((run) => run.client_need_id).map((run) => [run.client_need_id!, run]));
 
   const handleFilterToggle = (key: FilterKey, value: string | number) => {
     setPageSize(PAGE_SIZE);
@@ -145,9 +142,9 @@ export default function BusinessStaffing({
             const id = need.id;
             const isSelected = id === selectedClientNeedId;
             const run = runMap.get(id);
-            const completeness = run?.completeness_score ?? need.profile_completeness_score ?? 0;
-            const missingFields = run?.missing_fields ?? need.missing_information ?? [];
-            const summary = run?.output ?? need.needs_summary ?? need.project_description ?? "No summary available.";
+            const completeness = need.profile_completeness_score ?? run?.completeness_score ?? 0;
+            const missingFields = need.missing_information ?? run?.missing_fields ?? [];
+            const summary = need.needs_summary ?? need.project_description ?? run?.output ?? "No summary available.";
             return (
               <button
                 key={id}

@@ -5,7 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useProcessIntake, useUploadIntakeFile, useUploadIntakeText } from "@/hooks/useClientNeeds";
-import { AgentResponse } from "@/lib/clientNeedApi";
+import { useDocuments } from "@/context/DocumentContext";
+import {
+  AgentResponse,
+  extractClientNeedId,
+  extractCompletenessScore,
+  getClarifyingQuestions,
+  sendConversationMessage,
+  startConversation,
+  updateClientNeedFromMessage,
+} from "@/lib/clientNeedApi";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +29,7 @@ interface DarkSidebarProps {
   userRole?: string;
   userImage?: string;
   variant?: "career" | "business";
+  activeClientNeedId?: string | null;
   onClientNeedCreated?: (clientNeedId: string) => void;
   onAgentResult?: (result: AgentResponse) => void;
 }
@@ -28,6 +39,7 @@ export function DarkSidebar({
   userRole = "Senior Project Manager",
   userImage = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
   variant = "career",
+  activeClientNeedId,
   onClientNeedCreated,
   onAgentResult,
 }: DarkSidebarProps) {
@@ -42,14 +54,21 @@ export function DarkSidebar({
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [aiState, setAiState] = useState<"idle" | "listening" | "thinking" | "talking">("idle");
+  const [hasConversationStarted, setHasConversationStarted] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [currentClientNeedId, setCurrentClientNeedId] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const careerFileInputRef = useRef<HTMLInputElement | null>(null);
+  const { addFiles } = useDocuments();
+  const queryClient = useQueryClient();
 
   const uploadText = useUploadIntakeText();
   const uploadFile = useUploadIntakeFile();
   const processIntake = useProcessIntake();
 
   const isSubmitting = uploadText.isPending || uploadFile.isPending || processIntake.isPending;
-  const isChatBusy = isSubmitting;
+  const isChatBusy = isSubmitting || aiState === "thinking";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -75,15 +94,110 @@ export function DarkSidebar({
     recognitionRef.current = recognition;
   }, []);
 
+  useEffect(() => {
+    if (activeClientNeedId) {
+      setCurrentClientNeedId(activeClientNeedId);
+      setHasConversationStarted(true);
+    }
+  }, [activeClientNeedId]);
+
+  useEffect(() => {
+    if (!hasConversationStarted) return;
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [chatMessages, aiState, hasConversationStarted]);
+
   async function handleSendMessage(messageOverride?: string) {
     const message = (messageOverride ?? chatInput).trim();
     if (!message) return;
 
+    setHasConversationStarted(true);
     setChatMessages((prev) => [...prev, { role: "user", content: message }]);
     setChatInput("");
     setAiState("thinking");
 
     try {
+      if (!isBusiness) {
+        try {
+          let activeConversationId = conversationId;
+          if (!activeConversationId) {
+            const start = await startConversation({
+              client_name: userName,
+              source_channel: "career_portal_chat",
+            });
+            activeConversationId = start.conversation_id;
+            setConversationId(start.conversation_id);
+            if (start.greeting_message) {
+              setChatMessages((prev) => [...prev, { role: "assistant", content: start.greeting_message }]);
+            }
+          }
+
+          const response = await sendConversationMessage(activeConversationId, { message, message_type: "text" });
+          setChatMessages((prev) => [...prev, { role: "assistant", content: response.assistant_message }]);
+          setAiState("talking");
+          window.setTimeout(() => setAiState("idle"), 1200);
+          return;
+        } catch (conversationError) {
+          console.error("Conversation endpoint failed, falling back to intake flow.", conversationError);
+        }
+      }
+
+      if (isBusiness && currentClientNeedId) {
+        const updateResponse = await updateClientNeedFromMessage({
+          client_need_id: currentClientNeedId,
+          message,
+        });
+        const questionsResponse = await getClarifyingQuestions({
+          client_need_id: currentClientNeedId,
+          context: message,
+        });
+
+        queryClient.setQueryData(["client-need", currentClientNeedId], updateResponse.client_need);
+        queryClient.setQueriesData(
+          { queryKey: ["client-needs"], exact: false },
+          (old: any) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: old.items.map((item: any) =>
+                item.id === updateResponse.client_need.id ? updateResponse.client_need : item
+              ),
+            };
+          }
+        );
+
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              `Updated client need #${currentClientNeedId.slice(0, 8)}. ` +
+              `Completeness: ${updateResponse.profile_completeness}%.`,
+          },
+        ]);
+        if (questionsResponse.questions) {
+          setChatMessages((prev) => [...prev, { role: "assistant", content: questionsResponse.questions }]);
+        }
+
+        const enrichedResponse: AgentResponse = {
+          output: updateResponse.client_need.needs_summary
+            ?? updateResponse.client_need.project_description
+            ?? "Client need updated.",
+          intermediate_steps: [],
+          client_need_id: currentClientNeedId,
+          completeness_score: updateResponse.profile_completeness,
+          missing_fields: updateResponse.missing_fields,
+          critical_missing_fields: updateResponse.critical_missing_fields,
+          clarifying_questions: questionsResponse.questions || undefined,
+        };
+        onAgentResult?.(enrichedResponse);
+        queryClient.invalidateQueries({ queryKey: ["client-needs"] });
+        queryClient.invalidateQueries({ queryKey: ["client-need", currentClientNeedId] });
+
+        setAiState("talking");
+        window.setTimeout(() => setAiState("idle"), 1200);
+        return;
+      }
+
       const intakeResponse = await uploadText.mutateAsync({
         text_content: message,
         client_name: isBusiness ? userName : undefined,
@@ -95,14 +209,42 @@ export function DarkSidebar({
         userQuery: message,
       });
 
+      const derivedClientNeedId = extractClientNeedId(agentResponse.intermediate_steps);
+      const derivedCompleteness = extractCompletenessScore(agentResponse.intermediate_steps);
+      let clarifyingQuestions: string | undefined;
+      if (derivedClientNeedId) {
+        try {
+          const questionsResponse = await getClarifyingQuestions({ client_need_id: derivedClientNeedId });
+          clarifyingQuestions = questionsResponse.questions;
+        } catch (questionError) {
+          console.error("Failed to load clarifying questions.", questionError);
+        }
+      }
+      const enrichedResponse: AgentResponse = {
+        ...agentResponse,
+        client_need_id: derivedClientNeedId ?? agentResponse.client_need_id,
+        completeness_score: derivedCompleteness ?? agentResponse.completeness_score,
+        clarifying_questions: clarifyingQuestions,
+      };
       setChatMessages((prev) => [...prev, { role: "assistant", content: agentResponse.output }]);
-      onAgentResult?.(agentResponse);
-      if (agentResponse.client_need_id) {
-        onClientNeedCreated?.(agentResponse.client_need_id);
+      onAgentResult?.(enrichedResponse);
+      if (derivedClientNeedId) {
+        setCurrentClientNeedId(derivedClientNeedId);
+        onClientNeedCreated?.(derivedClientNeedId);
+        queryClient.invalidateQueries({ queryKey: ["client-need", derivedClientNeedId] });
       }
       setAiState("talking");
       window.setTimeout(() => setAiState("idle"), 1500);
-    } catch {
+    } catch (error) {
+      console.error("Chat request failed.", error);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "Sorry, I couldn’t reach the agent service. Please check the backend is running and try again.",
+        },
+      ]);
       setAiState("idle");
     }
   }
@@ -112,24 +254,35 @@ export function DarkSidebar({
     recognitionRef.current.start();
   }
 
-  function extractClientNeedId(intermediateSteps: Array<{ step: string; details?: Record<string, unknown> }>) {
-    const saved = intermediateSteps.find((step) => step.step === "save_client_need");
-    const id = saved?.details?.client_need_id;
-    return typeof id === "string" ? id : null;
+  function handleStopListening() {
+    if (!recognitionRef.current) return;
+    try {
+      recognitionRef.current.stop();
+    } catch {
+      // No-op: stop can throw if not actively listening.
+    }
+    setAiState("idle");
   }
 
   async function handleSubmitIntake() {
     setStatusMessage(null);
     try {
       let intakeId: string | null = null;
+      let uploadLabel: string | null = null;
+      if (currentClientNeedId) {
+        setCurrentClientNeedId(null);
+      }
       if (intakeFile) {
+        setHasConversationStarted(true);
         const response = await uploadFile.mutateAsync({
           file: intakeFile,
           client_name: clientName || undefined,
           client_email: clientEmail || undefined,
         });
         intakeId = response.id;
+        uploadLabel = `Uploaded file: ${intakeFile.name}`;
       } else if (briefText.trim()) {
+        setHasConversationStarted(true);
         const response = await uploadText.mutateAsync({
           text_content: briefText.trim(),
           client_name: clientName || undefined,
@@ -137,30 +290,73 @@ export function DarkSidebar({
           source_label: "business_portal",
         });
         intakeId = response.id;
+        uploadLabel = "Uploaded brief text";
       } else {
         setStatusMessage("Add a brief or upload a file to start intake.");
         return;
       }
 
-      const agentResponse = await processIntake.mutateAsync({
-        intakeId,
-        userQuery: briefText.trim() || undefined,
-      });
-      const clientNeedId = extractClientNeedId(agentResponse.intermediate_steps);
-
-      if (clientNeedId) {
-        onClientNeedCreated?.(clientNeedId);
-        setStatusMessage("Client need created and ready for review.");
-        setIntakeOpen(false);
-      } else {
-        setStatusMessage("Intake processed, but client need ID was not returned.");
+      if (uploadLabel) {
+        setChatMessages((prev) => [...prev, { role: "user", content: uploadLabel }]);
       }
-
+      setIntakeOpen(false);
       setBriefText("");
       setIntakeFile(null);
+
+      try {
+        const agentResponse = await processIntake.mutateAsync({
+          intakeId,
+          userQuery: briefText.trim() || undefined,
+        });
+        const clientNeedId = extractClientNeedId(agentResponse.intermediate_steps);
+        const derivedCompleteness = extractCompletenessScore(agentResponse.intermediate_steps);
+
+        if (clientNeedId) {
+          let clarifyingQuestions: string | undefined;
+          try {
+            const questionsResponse = await getClarifyingQuestions({ client_need_id: clientNeedId });
+            clarifyingQuestions = questionsResponse.questions;
+          } catch {
+            // Non-critical: clarifying questions may not be available yet
+          }
+
+          const enrichedResponse: AgentResponse = {
+            ...agentResponse,
+            client_need_id: clientNeedId,
+            completeness_score: derivedCompleteness ?? agentResponse.completeness_score,
+            clarifying_questions: clarifyingQuestions,
+          };
+          onAgentResult?.(enrichedResponse);
+
+          setCurrentClientNeedId(clientNeedId);
+          onClientNeedCreated?.(clientNeedId);
+          queryClient.invalidateQueries({ queryKey: ["client-needs"] });
+          queryClient.invalidateQueries({ queryKey: ["client-need", clientNeedId] });
+          setStatusMessage("Client need created and ready for review.");
+        } else {
+          setStatusMessage("Intake processed, but client need ID was not returned.");
+        }
+      } catch (agentError) {
+        console.error("Agent processing failed after upload.", agentError);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "Your upload was received, but the agent could not process it right now. Please try again in a moment.",
+          },
+        ]);
+        setStatusMessage("Upload succeeded, but agent processing failed.");
+      }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Failed to process intake.");
     }
+  }
+
+  function handleCareerFileUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    addFiles(files, "chat");
+    setHasConversationStarted(true);
   }
   return (
     <aside className="w-1/2 min-w-[400px] h-full bg-background flex flex-col border-r border-border p-8">
@@ -176,72 +372,116 @@ export function DarkSidebar({
       </div>
 
       {/* Welcome Message */}
-      <div className="flex-1 flex flex-col justify-between gap-8">
-        <div className="space-y-4">
-          <h1 className="text-4xl font-extrabold text-foreground leading-tight">
-            Welcome back, {userName.split(" ")[0]}.
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            {isBusiness
-              ? "Your AI business agent is ready. How can I help you staff today?"
-              : "Your AI career assistant is ready. How can I help you grow today?"}
-          </p>
-        </div>
-
-        {/* AI Pulse Visualizer */}
-        <div className="h-24 flex items-center justify-center gap-1">
-          {[40, 60, 100, 80, 50, 70].map((height, i) => (
-            <div
-              key={i}
-              className={`w-1 rounded-full transition-colors ${
-                aiState === "listening"
-                  ? "bg-success animate-pulse"
-                  : aiState === "thinking"
-                  ? "bg-warning animate-pulse"
-                  : aiState === "talking"
-                  ? "bg-primary animate-pulse"
-                  : "bg-primary/60"
-              }`}
-              style={{
-                height: `${height}%`,
-                opacity: height / 100,
-                animationDelay: `${i * 0.1}s`,
-              }}
-            />
-          ))}
-        </div>
-        <div className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {aiState === "listening" && "Listening"}
-          {aiState === "thinking" && "Thinking"}
-          {aiState === "talking" && "Talking"}
-          {aiState === "idle" && "Ready"}
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 space-y-3 max-h-64 overflow-y-auto">
-          {chatMessages.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Start a conversation to build a profile or clarify staffing needs.
-            </p>
-          )}
-          {chatMessages.map((message, idx) => (
-            <div
-              key={`${message.role}-${idx}`}
-              className={`text-sm p-3 rounded-lg ${
-                message.role === "user" ? "bg-secondary/60 text-foreground" : "bg-primary/10 text-foreground"
-              }`}
-            >
-              <span className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                {message.role === "user" ? "You" : "AI"}
-              </span>
-              {message.content}
+      <div className="flex-1 min-h-0 flex flex-col gap-6">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          {!hasConversationStarted && (
+            <div className="space-y-4">
+              <h1 className="text-4xl font-extrabold text-foreground leading-tight">
+                Welcome back, {userName.split(" ")[0]}.
+              </h1>
+              <p className="text-muted-foreground text-lg">
+                {isBusiness
+                  ? "Your AI business agent is ready. How can I help you staff today?"
+                  : "Your AI career assistant is ready. How can I help you grow today?"}
+              </p>
             </div>
-          ))}
+          )}
+
+          {!hasConversationStarted && (
+            <>
+              {/* AI Pulse Visualizer */}
+              <div className="h-24 flex items-center justify-center gap-1 mt-6">
+                {[40, 60, 100, 80, 50, 70].map((height, i) => (
+                  <div
+                    key={i}
+                    className={`w-1 rounded-full transition-colors ${
+                      aiState === "listening"
+                        ? "bg-success animate-pulse"
+                        : aiState === "thinking"
+                        ? "bg-warning animate-pulse"
+                        : aiState === "talking"
+                        ? "bg-primary animate-pulse"
+                        : "bg-primary/60"
+                    }`}
+                    style={{
+                      height: `${height}%`,
+                      opacity: height / 100,
+                      animationDelay: `${i * 0.1}s`,
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {aiState === "listening" && "Listening"}
+                {aiState === "thinking" && "Thinking"}
+                {aiState === "talking" && "Talking"}
+                {aiState === "idle" && "Ready"}
+              </div>
+            </>
+          )}
+
+          <div className="mt-6">
+            {hasConversationStarted &&
+              chatMessages.map((message, idx) => (
+                <div
+                  key={`${message.role}-${idx}`}
+                  className={`flex my-2 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-card text-foreground border border-border/70"
+                    }`}
+                  >
+                    <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">
+                      {message.role === "user" ? "You" : "Agent"}
+                    </span>
+                    <p className="leading-relaxed whitespace-pre-line">{message.content}</p>
+                  </div>
+              </div>
+            ))}
+            {hasConversationStarted && aiState !== "idle" && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm bg-card text-foreground border border-border/70">
+                  <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">Agent</span>
+                  <div className="flex items-center gap-4">
+                    <div className="h-8 flex items-center gap-1">
+                      {[40, 60, 100, 80, 50].map((height, i) => (
+                        <div
+                          key={i}
+                          className={`w-1 rounded-full transition-colors ${
+                            aiState === "listening"
+                              ? "bg-success animate-pulse"
+                              : aiState === "thinking"
+                              ? "bg-warning animate-pulse"
+                              : "bg-primary animate-pulse"
+                          }`}
+                          style={{
+                            height: `${height}%`,
+                            opacity: height / 100,
+                            animationDelay: `${i * 0.1}s`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      {aiState === "listening" && "Listening"}
+                      {aiState === "thinking" && "Thinking"}
+                      {aiState === "talking" && "Talking"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
         </div>
 
         {/* AI Interaction Composer */}
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4 shrink-0">
           <Textarea
-            className="w-full bg-transparent border-none resize-none h-32 text-base placeholder:text-muted-foreground focus-visible:ring-0"
+            className="w-full bg-transparent border-none resize-none h-32 text-base placeholder:text-muted-foreground "
             placeholder={
               isBusiness
                 ? "Ask AI to analyze staffing gaps, prioritize roles, or draft a project request..."
@@ -249,14 +489,34 @@ export function DarkSidebar({
             }
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (!isChatBusy) {
+                  void handleSendMessage();
+                }
+              }
+            }}
           />
           <div className="flex items-center justify-between pt-2 border-t border-border mt-4">
             <div className="flex items-center gap-2">
+              {!isBusiness && (
+                <input
+                  ref={careerFileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => {
+                    handleCareerFileUpload(event.target.files);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              )}
               <Button
                 variant="ghost"
                 size="icon"
                 className="text-muted-foreground hover:text-foreground"
-                onClick={handleStartListening}
+                onClick={aiState === "listening" ? handleStopListening : handleStartListening}
                 disabled={!recognitionRef.current}
               >
                 <Mic className="size-5" />
@@ -271,7 +531,12 @@ export function DarkSidebar({
                   <FileUp className="size-5" />
                 </Button>
               ) : (
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => careerFileInputRef.current?.click()}
+                >
                   <FileUp className="size-5" />
                 </Button>
               )}
@@ -313,7 +578,13 @@ export function DarkSidebar({
               <Input
                 type="file"
                 accept=".pdf,.wav,.mp3,.ogg,.m4a"
-                onChange={(event) => setIntakeFile(event.target.files?.[0] || null)}
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  setIntakeFile(file);
+                  if (file) {
+                    setHasConversationStarted(true);
+                  }
+                }}
               />
               {intakeFile && (
                 <p className="text-xs text-muted-foreground">Selected file: {intakeFile.name}</p>

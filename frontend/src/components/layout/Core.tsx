@@ -1,8 +1,16 @@
+import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useDocuments } from "@/context/DocumentContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Briefcase,
   Building2,
@@ -48,27 +56,6 @@ const coreProfile = {
   ],
 };
 
-const contextFiles = [
-  {
-    name: "Resume_Sarah_Jenkins.pdf",
-    type: "Resume",
-    size: "412 KB",
-    updated: "Jan 10, 2024",
-  },
-  {
-    name: "Performance_Review_2023.pdf",
-    type: "Review",
-    size: "268 KB",
-    updated: "Dec 20, 2023",
-  },
-  {
-    name: "PMP_Certification_Renewal.pdf",
-    type: "Certificate",
-    size: "98 KB",
-    updated: "Jan 05, 2024",
-  },
-];
-
 const integrations = [
   {
     name: "LinkedIn",
@@ -94,6 +81,37 @@ const integrations = [
 ];
 
 export default function Core() {
+  const { documents, addFiles, removeDocument } = useDocuments();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+
+  function handleFileAction(fileItem: (typeof documents)[number]) {
+    setSelectedDocId(fileItem.id);
+    if (fileItem.file) {
+      const url = URL.createObjectURL(fileItem.file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
+    }
+  }
+
+  function closePreview() {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    setSelectedDocId(null);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(documents.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const pagedDocuments = documents.slice(startIndex, startIndex + pageSize);
+  const selectedDoc = documents.find((doc) => doc.id === selectedDocId) ?? null;
+
   return (
     <section className="space-y-8">
       <div className="flex items-start justify-between gap-6">
@@ -277,76 +295,155 @@ export default function Core() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-lg font-semibold">Context Files</h4>
-            <Button variant="outline" className="font-semibold">
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-semibold">Context Files</h4>
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                addFiles(event.target.files, "core");
+                event.currentTarget.value = "";
+              }}
+            />
+            <Button variant="outline" className="font-semibold" onClick={() => fileInputRef.current?.click()}>
               <Upload className="size-4 mr-2" />
               Upload File
             </Button>
           </div>
-          <div className="space-y-3">
-            {contextFiles.map((fileItem) => (
-              <div key={fileItem.name} className="flex items-center justify-between rounded-xl border border-border p-4">
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-xl bg-secondary flex items-center justify-center">
-                    <FileText className="size-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{fileItem.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {fileItem.type} • {fileItem.size} • Updated {fileItem.updated}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                    <Eye className="size-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-
-        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-lg font-semibold">Integrations</h4>
-            <Badge variant="secondary">Manage</Badge>
-          </div>
-          <div className="space-y-3">
-            {integrations.map((integration) => (
-              <div key={integration.name} className="rounded-xl border border-border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-xl bg-secondary flex items-center justify-center">
-                      <integration.icon className="size-4 text-muted-foreground" />
+        <div className="bg-card rounded-2xl border border-border overflow-hidden">
+          <table className="w-full text-left table-fixed">
+            <thead className="bg-secondary/50 border-b border-border">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-2/5">Document Name</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/5">Type</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase w-1/5">Updated</th>
+                <th className="px-6 py-4 text-xs font-bold text-muted-foreground uppercase text-right w-1/5">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {pagedDocuments.map((fileItem) => (
+                <tr key={fileItem.id} className="hover:bg-secondary/30 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <FileText className="size-4 text-muted-foreground" />
+                      <div>
+                        <span className="font-medium block truncate max-w-[260px]" title={fileItem.name}>
+                          {fileItem.name}
+                        </span>
+                        {fileItem.size && (
+                          <p className="text-xs text-muted-foreground mt-1">{fileItem.size}</p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold">{integration.name}</p>
-                      <p className="text-xs text-muted-foreground">{integration.description}</p>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{fileItem.type ?? "Document"}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{fileItem.date}</td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-primary"
+                        onClick={() => handleFileAction(fileItem)}
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-primary"
+                        onClick={() => removeDocument(fileItem.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
                     </div>
-                  </div>
-                  <Switch defaultChecked={integration.connected} />
-                </div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-2">
-                    <Link2 className="size-3" />
-                    {integration.handle}
-                  </span>
-                  <Button variant="ghost" size="sm" className="text-muted-foreground">
-                    {integration.connected ? "Disconnect" : "Connect"}
-                  </Button>
-                </div>
-              </div>
-            ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="bg-secondary/50 p-4 text-center">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="link"
+                className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={safePage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                variant="link"
+                className="text-sm font-bold text-muted-foreground hover:text-foreground"
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={safePage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-semibold">Integrations</h4>
+          <Badge variant="secondary">Manage</Badge>
+        </div>
+        <div className="space-y-3">
+          {integrations.map((integration) => (
+            <div key={integration.name} className="rounded-xl border border-border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-secondary flex items-center justify-center">
+                    <integration.icon className="size-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">{integration.name}</p>
+                    <p className="text-xs text-muted-foreground">{integration.description}</p>
+                  </div>
+                </div>
+                <Switch defaultChecked={integration.connected} />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Link2 className="size-3" />
+                  {integration.handle}
+                </span>
+                <Button variant="ghost" size="sm" className="text-muted-foreground">
+                  {integration.connected ? "Disconnect" : "Connect"}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Dialog open={Boolean(selectedDocId)} onOpenChange={(open) => !open && closePreview()}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{selectedDoc?.name ?? "Document Preview"}</DialogTitle>
+          </DialogHeader>
+          {previewUrl ? (
+            <iframe
+              title={selectedDoc?.name ?? "Document Preview"}
+              src={previewUrl}
+              className="w-full h-[70vh] rounded-lg border border-border"
+            />
+          ) : (
+            <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground">
+              Preview unavailable. Upload a file to view it here.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

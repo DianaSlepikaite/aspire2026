@@ -41,6 +41,37 @@ export interface AgentResponse {
   completeness_score?: number;
   missing_fields?: string[];
   critical_missing_fields?: string[];
+  clarifying_questions?: string;
+}
+
+export interface ConversationStartResponse {
+  conversation_id: string;
+  client_need_id: string;
+  greeting_message: string;
+  audio_url?: string | null;
+}
+
+export interface MessageResponse {
+  conversation_id: string;
+  message_id: string;
+  assistant_message: string;
+  audio_url?: string | null;
+  extraction_updates?: Array<{
+    field_name: string;
+    field_value: unknown;
+    confidence: number;
+  }> | null;
+  profile_completeness: number;
+  missing_fields: string[];
+  can_complete: boolean;
+}
+
+export interface ConversationCompleteResponse {
+  conversation_id: string;
+  client_need_id: string;
+  status: "in_progress" | "completed" | "abandoned";
+  profile_completeness: number;
+  summary: string;
 }
 
 const API_BASE = (import.meta as ImportMeta).env?.VITE_CLIENT_NEED_API_URL ?? "http://localhost:8000";
@@ -130,6 +161,75 @@ export async function processIntake(intakeId: string, userQuery?: string) {
   return handleResponse<AgentResponse>(response);
 }
 
+export async function startConversation(params: {
+  client_name?: string;
+  client_email?: string;
+  client_phone?: string;
+  source_channel?: string;
+  initial_context?: Record<string, unknown>;
+}) {
+  const url = buildUrl("/api/v1/conversation/start");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse<ConversationStartResponse>(response);
+}
+
+export async function sendConversationMessage(
+  conversationId: string,
+  params: { message: string; message_type?: "text" | "speech" }
+) {
+  const url = buildUrl(`/api/v1/conversation/${conversationId}/message`);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: params.message,
+      message_type: params.message_type ?? "text",
+    }),
+  });
+  return handleResponse<MessageResponse>(response);
+}
+
+export async function completeConversation(conversationId: string) {
+  const url = buildUrl(`/api/v1/conversation/${conversationId}/complete`);
+  const response = await fetch(url, { method: "POST" });
+  return handleResponse<ConversationCompleteResponse>(response);
+}
+
+export async function getClarifyingQuestions(params: {
+  client_need_id: string;
+  context?: string;
+}) {
+  const url = buildUrl("/api/v1/agent/clarifying-questions");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return handleResponse<{ client_need_id: string; questions: string }>(response);
+}
+
+export async function updateClientNeedFromMessage(params: {
+  client_need_id: string;
+  message: string;
+}) {
+  const url = buildUrl(`/api/v1/client-needs/${params.client_need_id}/message`);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: params.message }),
+  });
+  return handleResponse<{
+    client_need: ClientNeed;
+    profile_completeness: number;
+    missing_fields: string[];
+    critical_missing_fields: string[];
+  }>(response);
+}
+
 export async function listClientNeeds(params: {
   status?: ConversationStatus;
   urgency?: UrgencyLevel;
@@ -140,4 +240,25 @@ export async function listClientNeeds(params: {
   const url = buildUrl("/api/v1/client-needs", params);
   const response = await fetch(url);
   return handleResponse<ClientNeedListResponse>(response);
+}
+
+export async function getClientNeed(id: string) {
+  const url = buildUrl(`/api/v1/client-needs/${id}`);
+  const response = await fetch(url);
+  return handleResponse<ClientNeed>(response);
+}
+
+export function extractClientNeedId(steps: AgentResponse["intermediate_steps"]) {
+  const saved = steps.find((step) => step.step === "save_client_need");
+  const id = saved?.details?.client_need_id;
+  return typeof id === "string" ? id : null;
+}
+
+export function extractCompletenessScore(steps: AgentResponse["intermediate_steps"]) {
+  const saved = steps.find((step) => step.step === "save_client_need");
+  const extract = steps.find((step) => step.step === "extract_needs");
+  const score = (saved?.details?.completeness_score ?? extract?.details?.completeness_score) as
+    | number
+    | undefined;
+  return typeof score === "number" ? score : null;
 }

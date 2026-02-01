@@ -6,18 +6,20 @@ import Profile from "@/components/layout/Profile";
 import Core from "@/components/layout/Core";
 import Growth from "@/components/layout/Growth";
 import Matches from "../components/layout/Matches";
+import { DocumentProvider } from "@/context/DocumentContext";
 
 export default function Index() {
   const [activeTab, setActiveTab] = useState<"profile" | "core" | "growth" | "opportunities">("profile");
 
   return (
-    <div className="flex h-screen overflow-hidden dark">
-      {/* Left Panel: AI Interaction Hub */}
-      <DarkSidebar
-        userName="Sarah Jenkins"
-        userRole="Senior Project Manager"
-        userImage="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face"
-      />
+    <DocumentProvider>
+      <div className="flex h-screen overflow-hidden dark">
+        {/* Left Panel: AI Interaction Hub */}
+        <DarkSidebar
+          userName="Sarah Jenkins"
+          userRole="Senior Project Manager"
+          userImage="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face"
+        />
 
       {/* Right Panel: Dashboard Content */}
       <main className="flex-1 h-full bg-background overflow-y-auto">
@@ -96,7 +98,8 @@ export default function Index() {
             <Matches />
           )}
         </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </DocumentProvider>
   );
 }

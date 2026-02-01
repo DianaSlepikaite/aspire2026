@@ -63,7 +63,17 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = Field(default="json", description="Log format (json or text)")
     API_V1_PREFIX: str = Field(default="/api/v1", description="API v1 route prefix")
     CORS_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"],
+        default=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:8080",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:8080",
+            "http://localhost:8000",
+        ],
         description="Allowed CORS origins",
     )
 

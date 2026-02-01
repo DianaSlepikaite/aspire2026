@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useClientNeed } from "@/hooks/useClientNeeds";
 import type { AgentResponse } from "@/lib/clientNeedApi";
 
 interface BusinessRolesProps {
@@ -9,9 +10,15 @@ interface BusinessRolesProps {
 
 export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRolesProps) {
   const selectedRun = agentRuns.find((run) => run.client_need_id === clientNeedId);
-  const completeness = selectedRun?.completeness_score ?? 0;
-  const missingFields = selectedRun?.missing_fields ?? [];
+  const { data: clientNeed, isLoading } = useClientNeed(clientNeedId);
+
+  // API data is source of truth; agentRuns supplements fields the backend doesn't store
+  const completeness = clientNeed?.profile_completeness_score ?? selectedRun?.completeness_score ?? 0;
+  const missingFields = clientNeed?.missing_information ?? selectedRun?.missing_fields ?? [];
   const criticalMissing = selectedRun?.critical_missing_fields ?? [];
+  const clarifyingQuestions = selectedRun?.clarifying_questions;
+  const summary =
+    clientNeed?.needs_summary ?? clientNeed?.project_description ?? selectedRun?.output ?? "";
 
   return (
     <section className="space-y-6">
@@ -33,23 +40,25 @@ export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRoles
         </div>
       )}
 
-      {clientNeedId && !selectedRun && (
+      {clientNeedId && !selectedRun && !clientNeed && !isLoading && (
         <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
           This client need does not have an agent summary yet. Run the agent to generate a summary.
         </div>
       )}
 
-      {selectedRun && (
+      {(selectedRun || clientNeed) && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="rounded-2xl border border-border bg-card p-6 space-y-3 lg:col-span-2">
               <div className="flex items-center gap-3">
                 <h4 className="text-xl font-semibold">
-                  Client Need {selectedRun.client_need_id ? `#${selectedRun.client_need_id.slice(0, 8)}` : ""}
+                  Client Need {clientNeedId ? `#${clientNeedId.slice(0, 8)}` : ""}
                 </h4>
                 <Badge variant="secondary">Agent Summary</Badge>
               </div>
-              <p className="text-sm text-muted-foreground whitespace-pre-line">{selectedRun.output}</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-line">
+                {summary || "Summary not available yet."}
+              </p>
             </div>
             <div className="rounded-2xl border border-border bg-card p-6 space-y-3">
               <div>
@@ -95,6 +104,18 @@ export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRoles
                 </Badge>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg font-semibold">Clarifying Questions</h4>
+              <Badge variant="secondary">{clarifyingQuestions ? "AI" : "None"}</Badge>
+            </div>
+            {clarifyingQuestions ? (
+              <p className="text-sm text-muted-foreground whitespace-pre-line">{clarifyingQuestions}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">No clarifying questions were generated yet.</p>
+            )}
           </div>
         </>
       )}

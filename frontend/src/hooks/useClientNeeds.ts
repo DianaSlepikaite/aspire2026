@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   ConversationStatus,
   UrgencyLevel,
+  getClientNeed,
   listClientNeeds,
   processIntake,
   uploadIntakeFile,
@@ -18,8 +19,21 @@ export function useClientNeedsList(params: {
   return useQuery({
     queryKey: ["client-needs", params],
     queryFn: () => listClientNeeds(params),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useClientNeed(clientNeedId?: string | null) {
+  return useQuery({
+    queryKey: ["client-need", clientNeedId],
+    queryFn: () => getClientNeed(clientNeedId ?? ""),
+    enabled: Boolean(clientNeedId),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 }
 

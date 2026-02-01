@@ -33,12 +33,6 @@ export function ProfileCard({
               {role} • {department}
             </p>
           </div>
-          {verified && (
-            <span className="bg-success/10 text-success text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-              <Check className="size-3" />
-              Profile Verified
-            </span>
-          )}
         </div>
         <div className="flex flex-wrap gap-2 mb-6">
           {skills.slice(0, 3).map((skill) => (
@@ -55,7 +49,6 @@ export function ProfileCard({
             </span>
           )}
         </div>
-        <Button className="font-bold">View AI-Optimized CV</Button>
       </div>
     </div>
   );
