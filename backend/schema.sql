@@ -62,6 +62,9 @@ CREATE TABLE IF NOT EXISTS client_needs (
     collaboration_tools JSONB, -- ["Slack", "Jira", "GitHub", ...]
     communication_preferences JSONB,
 
+    -- Roles & Disciplines
+    required_roles JSONB, -- [{"category": "technology_engineering", "evidence": "cloud engineering", "description": "...", "count": 2}, ...]
+
     -- AI-Generated Insights
     needs_summary TEXT,
     key_challenges JSONB,

@@ -448,7 +448,23 @@ Your task is to analyze the provided text and extract structured information abo
 - Timeline (duration, start date, flexibility)
 - Urgency and priority
 - Work arrangement (location, hours)
+- Required roles/disciplines (identify and normalize)
 - Additional requirements
+
+**Role Extraction Instructions:**
+Identify any roles or disciplines mentioned or implied in the text. For each role:
+1. Extract the original wording/evidence from the client brief
+2. Normalize to one of these canonical categories:
+   - strategy_consulting: strategy, business analysis, domain experts, change management
+   - product_management: PMs, product owners, product leads
+   - technology_engineering: architects, engineers, developers, DevOps, cloud, AI/ML
+   - design_ux: UX/UI designers, researchers, accessibility, service design
+   - creative_content: copywriters, content strategists, brand/marketing
+   - project_program_management: project managers, scrum masters, agile coaches
+   - quality_testing: QA, testers, automation, UAT
+   - data_analytics: data scientists, analysts, BI, visualization
+
+3. Include count if mentioned (e.g., "3 developers" → count: 3)
 
 Return your analysis as a JSON object with the following structure:
 {
@@ -470,11 +486,20 @@ Return your analysis as a JSON object with the following structure:
   "priority_score": number (1-10) or null,
   "work_location": "remote|onsite|hybrid or null",
   "team_size_needed": number or null,
-  "collaboration_tools": ["tool1", "tool2"] or null
+  "collaboration_tools": ["tool1", "tool2"] or null,
+  "required_roles": [
+    {
+      "category": "technology_engineering",
+      "evidence": "cloud engineering support",
+      "description": "optional additional details",
+      "count": 2
+    }
+  ] or null
 }
 
 Only include fields where you can confidently extract information. Use null for missing data.
-Be precise with numbers and dates. Infer reasonable values when context is clear."""
+Be precise with numbers and dates. Infer reasonable values when context is clear.
+For roles: extract explicit mentions AND infer from responsibilities described."""
 
     def _build_extraction_prompt(self, text: str) -> str:
         """Build the extraction prompt from text."""
@@ -564,4 +589,114 @@ Return only the JSON object, no additional text."""
             if normalized:
                 data["work_location"] = normalized
 
+        # Role category normalization
+        if "required_roles" in data and isinstance(data["required_roles"], list):
+            data["required_roles"] = self._normalize_roles(data["required_roles"])
+
         return data
+
+    def _normalize_roles(self, roles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Normalize role categories and validate structure."""
+        role_category_mapping = {
+            # Strategy & Consulting
+            "strategy": "strategy_consulting",
+            "business analyst": "strategy_consulting",
+            "business analysis": "strategy_consulting",
+            "domain expert": "strategy_consulting",
+            "change management": "strategy_consulting",
+            "transformation": "strategy_consulting",
+
+            # Product Management
+            "product manager": "product_management",
+            "product owner": "product_management",
+            "pm": "product_management",
+            "apm": "product_management",
+            "product lead": "product_management",
+            "feature owner": "product_management",
+
+            # Technology & Engineering
+            "architect": "technology_engineering",
+            "engineer": "technology_engineering",
+            "developer": "technology_engineering",
+            "engineering": "technology_engineering",
+            "backend": "technology_engineering",
+            "frontend": "technology_engineering",
+            "full-stack": "technology_engineering",
+            "fullstack": "technology_engineering",
+            "devops": "technology_engineering",
+            "sre": "technology_engineering",
+            "cloud": "technology_engineering",
+            "ai": "technology_engineering",
+            "ml": "technology_engineering",
+            "machine learning": "technology_engineering",
+            "data engineer": "technology_engineering",
+
+            # Design & UX
+            "designer": "design_ux",
+            "ux": "design_ux",
+            "ui": "design_ux",
+            "interaction design": "design_ux",
+            "service design": "design_ux",
+            "researcher": "design_ux",
+            "user research": "design_ux",
+            "accessibility": "design_ux",
+
+            # Creative & Content
+            "copywriter": "creative_content",
+            "content": "creative_content",
+            "brand": "creative_content",
+            "marketing": "creative_content",
+            "creative": "creative_content",
+
+            # Project & Program Management
+            "project manager": "project_program_management",
+            "program manager": "project_program_management",
+            "scrum master": "project_program_management",
+            "agile coach": "project_program_management",
+            "delivery": "project_program_management",
+            "pmo": "project_program_management",
+
+            # Quality & Testing
+            "qa": "quality_testing",
+            "tester": "quality_testing",
+            "quality": "quality_testing",
+            "testing": "quality_testing",
+            "automation": "quality_testing",
+            "uat": "quality_testing",
+
+            # Data & Analytics
+            "data scientist": "data_analytics",
+            "data analyst": "data_analytics",
+            "analytics": "data_analytics",
+            "bi": "data_analytics",
+            "business intelligence": "data_analytics",
+            "insights": "data_analytics",
+            "reporting": "data_analytics",
+        }
+
+        normalized_roles = []
+
+        for role in roles:
+            if not isinstance(role, dict):
+                continue
+
+            # Normalize category if it's a string that needs mapping
+            category = role.get("category", "")
+            if isinstance(category, str):
+                category_lower = category.lower().replace("_", " ")
+
+                # Try exact match first
+                if category_lower in role_category_mapping:
+                    role["category"] = role_category_mapping[category_lower]
+                # Try partial match
+                else:
+                    for keyword, normalized_category in role_category_mapping.items():
+                        if keyword in category_lower:
+                            role["category"] = normalized_category
+                            break
+
+            # Validate that we have required fields
+            if "category" in role and "evidence" in role:
+                normalized_roles.append(role)
+
+        return normalized_roles

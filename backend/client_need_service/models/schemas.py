@@ -72,6 +72,18 @@ class WorkLocation(str, Enum):
     HYBRID = "hybrid"
 
 
+class RoleCategory(str, Enum):
+    """Canonical role categories (Publicis Sapient-equivalent disciplines)."""
+    STRATEGY_CONSULTING = "strategy_consulting"
+    PRODUCT_MANAGEMENT = "product_management"
+    TECHNOLOGY_ENGINEERING = "technology_engineering"
+    DESIGN_UX = "design_ux"
+    CREATIVE_CONTENT = "creative_content"
+    PROJECT_PROGRAM_MANAGEMENT = "project_program_management"
+    QUALITY_TESTING = "quality_testing"
+    DATA_ANALYTICS = "data_analytics"
+
+
 class IntakeSourceType(str, Enum):
     """Source type for client intake."""
     PDF = "pdf"
@@ -201,6 +213,14 @@ class WorkLocationDetails(BaseModel):
     address: Optional[str] = None
 
 
+class RoleInfo(BaseModel):
+    """Information about a required role/discipline."""
+    category: RoleCategory = Field(..., description="Normalized role category")
+    evidence: str = Field(..., description="Original wording from client brief")
+    description: Optional[str] = Field(None, description="Additional details about the role")
+    count: Optional[int] = Field(None, ge=1, description="Number of people needed in this role")
+
+
 class ClientNeedBase(BaseModel):
     """Base model for client need with common fields."""
     # Client Information
@@ -247,6 +267,12 @@ class ClientNeedBase(BaseModel):
     team_size_needed: Optional[int] = Field(None, ge=1)
     collaboration_tools: Optional[List[str]] = None
     communication_preferences: Optional[List[str]] = None
+
+    # Roles & Disciplines
+    required_roles: Optional[List[RoleInfo]] = Field(
+        None,
+        description="Identified roles/disciplines needed for the project"
+    )
 
     # AI Insights
     needs_summary: Optional[str] = None

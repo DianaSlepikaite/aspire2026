@@ -62,7 +62,7 @@ class StorageService:
         # JSONB fields that need parsing
         jsonb_fields = [
             "required_skills", "preferred_skills", "collaboration_tools",
-            "key_challenges", "certifications_required"
+            "key_challenges", "certifications_required", "required_roles"
         ]
 
         for field in jsonb_fields:
@@ -178,7 +178,7 @@ class StorageService:
             # JSONB fields that need JSON serialization
             jsonb_fields = {
                 "required_skills", "preferred_skills", "collaboration_tools",
-                "key_challenges", "certifications_required"
+                "key_challenges", "certifications_required", "required_roles"
             }
 
             for key, value in update_dict.items():
