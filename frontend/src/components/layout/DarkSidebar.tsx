@@ -275,9 +275,6 @@ export function DarkSidebar({
                   <FileUp className="size-5" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                <PlusCircle className="size-5" />
-              </Button>
             </div>
             <Button className="font-semibold" onClick={() => handleSendMessage()} disabled={isChatBusy}>
               {isChatBusy ? "Sending..." : "Send Command"}

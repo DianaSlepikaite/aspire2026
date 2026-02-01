@@ -1,13 +1,19 @@
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Calendar, ChevronDown, Filter, PlusCircle, Zap } from "lucide-react";
-import { AgentResponse } from "@/lib/clientNeedApi";
+import { AlertTriangle, ChevronDown, PlusCircle, Zap } from "lucide-react";
+import type { AgentResponse, ClientNeed } from "@/lib/clientNeedApi";
+import { useClientNeedsList } from "@/hooks/useClientNeeds";
+
+const PAGE_SIZE = 5;
+
+type FilterKey = "status" | "urgency" | "min_completeness";
 
 const filterChips = [
-  { label: "All Departments", active: true, hasDropdown: true },
-  { label: "Urgent Only", active: false, icon: AlertTriangle },
-  { label: "Match > 85%", active: false, hasDropdown: true },
-  { label: "Q3-Q4 Availability", active: false, icon: Calendar },
+  { id: "all", label: "All Projects", key: "reset" as const },
+  { id: "urgent", label: "Urgent Only", key: "urgency" as const, value: "high", icon: AlertTriangle },
+  { id: "match", label: "Match > 85%", key: "min_completeness" as const, value: 85, icon: Zap },
+  { id: "active", label: "Active Only", key: "status" as const, value: "in_progress", hasDropdown: true },
 ];
 
 interface BusinessStaffingProps {
@@ -23,33 +29,81 @@ export default function BusinessStaffing({
   onViewRoles,
   agentRuns,
 }: BusinessStaffingProps) {
-  const items = agentRuns;
+  const [filters, setFilters] = useState<{
+    status?: "in_progress" | "completed" | "abandoned";
+    urgency?: "low" | "medium" | "high" | "critical";
+    min_completeness?: number;
+  }>({});
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+
+  const { data, isLoading, isError } = useClientNeedsList({
+    status: filters.status,
+    urgency: filters.urgency,
+    min_completeness: filters.min_completeness,
+    limit: pageSize,
+    offset: 0,
+  });
+
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const runMap = useMemo(
+    () => new Map(agentRuns.filter((run) => run.client_need_id).map((run) => [run.client_need_id!, run])),
+    [agentRuns]
+  );
+
+  const handleFilterToggle = (key: FilterKey, value: string | number) => {
+    setPageSize(PAGE_SIZE);
+    setFilters((prev) => ({
+      ...prev,
+      [key]: prev[key] === value ? undefined : value,
+    }));
+  };
+
+  const handleResetFilters = () => {
+    setPageSize(PAGE_SIZE);
+    setFilters({});
+  };
+
+  const hasFilters = Boolean(filters.status || filters.urgency || filters.min_completeness);
+  const showLoadMore = total > PAGE_SIZE && total > items.length;
+  const visibleCount = items.length;
 
   return (
     <section className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-2xl font-bold leading-tight tracking-tight">Match Orchestration</h3>
-          <p className="text-muted-foreground text-sm">12 Active Projects, 48 Optimal Matches Found</p>
+          <p className="text-muted-foreground text-sm">
+            {total} Projects in Pipeline, {visibleCount} Loaded
+          </p>
         </div>
         <div className="flex gap-3">
           <Button className="font-bold">
             <PlusCircle className="size-4 mr-2" />
             New Project Request
           </Button>
-          <Button variant="outline" className="font-bold">
-            <Filter className="size-4 mr-2" />
-            Advanced Filters
-          </Button>
         </div>
       </div>
 
       <div className="flex gap-3 flex-wrap">
-        {filterChips.map((chip, idx) => (
+        {filterChips.map((chip) => {
+          const isActive =
+            chip.key === "reset"
+              ? !hasFilters
+              : filters[chip.key as FilterKey] === chip.value;
+          return (
           <button
-            key={idx}
+            key={chip.id}
+            type="button"
+            onClick={() => {
+              if (chip.key === "reset") {
+                handleResetFilters();
+              } else {
+                handleFilterToggle(chip.key, chip.value);
+              }
+            }}
             className={`flex h-9 items-center justify-center gap-2 rounded-full px-4 text-sm font-medium transition-colors ${
-              chip.active
+              isActive
                 ? "bg-primary/10 border border-primary/30 text-primary font-semibold"
                 : "bg-card border border-border text-muted-foreground hover:bg-secondary"
             }`}
@@ -58,7 +112,8 @@ export default function BusinessStaffing({
             <span>{chip.label}</span>
             {chip.hasDropdown && <ChevronDown className="size-4" />}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       <div className="space-y-6">
@@ -67,20 +122,35 @@ export default function BusinessStaffing({
           Client Needs Intake
         </h4>
 
-        {items.length === 0 && (
+        {isLoading && (
+          <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+            Loading client needs...
+          </div>
+        )}
+
+        {isError && (
+          <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+            Unable to load client needs right now. Please try again shortly.
+          </div>
+        )}
+
+        {!isLoading && !isError && items.length === 0 && (
           <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
             No client needs processed yet. Send a brief to the agent to get started.
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-4">
-          {items.map((need) => {
-            const id = need.client_need_id || "";
+          {items.map((need: ClientNeed) => {
+            const id = need.id;
             const isSelected = id === selectedClientNeedId;
-            const completeness = need.completeness_score ?? 0;
+            const run = runMap.get(id);
+            const completeness = run?.completeness_score ?? need.profile_completeness_score ?? 0;
+            const missingFields = run?.missing_fields ?? need.missing_information ?? [];
+            const summary = run?.output ?? need.needs_summary ?? need.project_description ?? "No summary available.";
             return (
               <button
-                key={id || need.output}
+                key={id}
                 type="button"
                 onClick={() => id && onSelectNeed?.(id)}
                 className={`text-left rounded-2xl border p-5 transition-colors ${
@@ -91,20 +161,21 @@ export default function BusinessStaffing({
                   <div className="space-y-2">
                     <div className="flex items-center gap-3">
                       <h5 className="text-lg font-semibold">
-                        Client Need #{id ? id.slice(0, 8) : "Pending"}
+                        {need.project_title ?? `Client Need #${id.slice(0, 8)}`}
                       </h5>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {need.output.slice(0, 120)}{need.output.length > 120 ? "..." : ""}
+                      {summary.slice(0, 120)}
+                      {summary.length > 120 ? "..." : ""}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {(need.missing_fields || []).slice(0, 3).map((field) => (
+                      {missingFields.slice(0, 3).map((field) => (
                         <Badge key={field} variant="outline">
                           {field}
                         </Badge>
                       ))}
-                      {need.missing_fields && need.missing_fields.length > 3 && (
-                        <Badge variant="outline">+{need.missing_fields.length - 3} missing</Badge>
+                      {missingFields.length > 3 && (
+                        <Badge variant="outline">+{missingFields.length - 3} missing</Badge>
                       )}
                     </div>
                   </div>
@@ -134,13 +205,22 @@ export default function BusinessStaffing({
         </div>
       </div>
 
-      <div className="mt-6 flex flex-col items-center gap-3">
-        <Button variant="outline" size="lg" className="font-bold">
-          <ChevronDown className="size-4 mr-2" />
-          Load More Projects
-        </Button>
-        <p className="text-sm text-muted-foreground">Showing 2 of 12 projects</p>
-      </div>
+      {showLoadMore && (
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <Button
+            variant="outline"
+            size="lg"
+            className="font-bold"
+            onClick={() => setPageSize((size) => size + PAGE_SIZE)}
+          >
+            <ChevronDown className="size-4 mr-2" />
+            Load More Projects
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Showing {items.length} of {total} projects
+          </p>
+        </div>
+      )}
     </section>
   );
 }

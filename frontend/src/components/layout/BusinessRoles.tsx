@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AgentResponse } from "@/lib/clientNeedApi";
+import type { AgentResponse } from "@/lib/clientNeedApi";
 
 interface BusinessRolesProps {
   clientNeedId?: string | null;
@@ -8,7 +8,7 @@ interface BusinessRolesProps {
 }
 
 export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRolesProps) {
-  const selectedRun = agentRuns.find((run) => run.client_need_id === clientNeedId) ?? agentRuns[0];
+  const selectedRun = agentRuns.find((run) => run.client_need_id === clientNeedId);
   const completeness = selectedRun?.completeness_score ?? 0;
   const missingFields = selectedRun?.missing_fields ?? [];
   const criticalMissing = selectedRun?.critical_missing_fields ?? [];
@@ -30,6 +30,12 @@ export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRoles
       {!clientNeedId && (
         <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
           Select a client need from Staffing to view the agent summary.
+        </div>
+      )}
+
+      {clientNeedId && !selectedRun && (
+        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+          This client need does not have an agent summary yet. Run the agent to generate a summary.
         </div>
       )}
 

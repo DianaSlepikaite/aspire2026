@@ -1,4 +1,27 @@
 export type UrgencyLevel = "low" | "medium" | "high" | "critical";
+export type ConversationStatus = "in_progress" | "completed" | "abandoned";
+
+export interface ClientNeed {
+  id: string;
+  client_name?: string | null;
+  client_company?: string | null;
+  project_title?: string | null;
+  project_description?: string | null;
+  required_skills?: string[] | null;
+  urgency_level?: UrgencyLevel | null;
+  profile_completeness_score?: number | null;
+  missing_information?: string[] | null;
+  conversation_status: ConversationStatus;
+  created_at: string;
+  needs_summary?: string | null;
+}
+
+export interface ClientNeedListResponse {
+  items: ClientNeed[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 export interface IntakePackage {
   id: string;
@@ -105,4 +128,16 @@ export async function processIntake(intakeId: string, userQuery?: string) {
     body: JSON.stringify({ intake_id: intakeId, user_query: userQuery }),
   });
   return handleResponse<AgentResponse>(response);
+}
+
+export async function listClientNeeds(params: {
+  status?: ConversationStatus;
+  urgency?: UrgencyLevel;
+  min_completeness?: number;
+  limit?: number;
+  offset?: number;
+}) {
+  const url = buildUrl("/api/v1/client-needs", params);
+  const response = await fetch(url);
+  return handleResponse<ClientNeedListResponse>(response);
 }
