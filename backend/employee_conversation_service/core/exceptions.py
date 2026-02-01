@@ -111,3 +111,24 @@ class RateLimitError(ServiceError):
     def __init__(self, message: str, retry_after: Optional[int] = None):
         details = {"retry_after": retry_after} if retry_after else {}
         super().__init__(message, details, status_code=429)
+
+
+class DocumentUploadError(ServiceError):
+    """Raised when document upload validation fails (bad file type, size, etc.)."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(message, details, status_code=400)
+
+
+class DocumentParsingError(ServiceError):
+    """Raised when document text extraction fails."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(message, details, status_code=422)
+
+
+class BlobStorageError(ServiceError):
+    """Raised when Azure Blob Storage operations fail."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(message, details, status_code=502)

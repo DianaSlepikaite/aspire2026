@@ -5,8 +5,9 @@ Conversation management endpoints.
 import logging
 from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
+from employee_conversation_service.config import get_settings
 from employee_conversation_service.models.schemas import (
     ConversationStartRequest,
     ConversationStartResponse,
@@ -15,13 +16,19 @@ from employee_conversation_service.models.schemas import (
     ConversationStatusResponse,
     ConversationCompleteResponse,
     ConversationHistory,
+    ConversationDocumentUploadResponse,
     EmployeeLookupResponse
 )
 from employee_conversation_service.services.conversation_service import ConversationService
+from employee_conversation_service.services.document_upload_service import DocumentUploadService
 from employee_conversation_service.core.exceptions import (
     ConversationNotFoundError,
     ConversationError,
-    ConversationTimeoutError
+    ConversationTimeoutError,
+    DocumentUploadError,
+    DocumentParsingError,
+    AzureOpenAIError,
+    BlobStorageError,
 )
 
 logger = logging.getLogger(__name__)
@@ -283,4 +290,78 @@ async def get_conversation_history(conversation_id: UUID):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Failed to get conversation history"}
+        )
+
+
+@router.post(
+    "/{conversation_id}/upload-document",
+    response_model=ConversationDocumentUploadResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Upload a document to a conversation",
+    description="Upload a CV/resume document within an active conversation to enrich the profile",
+)
+async def upload_conversation_document(
+    conversation_id: UUID,
+    file: UploadFile = File(..., description="PDF or DOCX file"),
+):
+    """
+    Upload a CV/resume document within an active conversation.
+
+    Parses the document, extracts structured data, and merges it into the
+    existing profile using a 'document fills gaps, conversation wins conflicts'
+    strategy.
+    """
+    settings = get_settings()
+
+    if not settings.ENABLE_DOCUMENT_UPLOAD:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "Document upload is disabled"},
+        )
+
+    try:
+        file_bytes = await file.read()
+
+        upload_service = DocumentUploadService()
+        response = await upload_service.upload_for_conversation(
+            conversation_id=conversation_id,
+            file_bytes=file_bytes,
+            filename=file.filename or "unknown",
+            content_type=file.content_type or "application/octet-stream",
+        )
+
+        return response
+
+    except ConversationNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": e.message},
+        )
+    except DocumentUploadError as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details},
+        )
+    except DocumentParsingError as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details},
+        )
+    except AzureOpenAIError as e:
+        logger.error(f"OpenAI extraction failed: {e}")
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details},
+        )
+    except BlobStorageError as e:
+        logger.error(f"Blob storage error: {e}")
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={"error": e.message, "details": e.details},
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during conversation document upload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to process document upload"},
         )

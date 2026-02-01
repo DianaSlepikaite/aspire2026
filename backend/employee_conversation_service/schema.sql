@@ -88,7 +88,10 @@ CREATE TABLE employee_agent.employee_profiles (
   -- Metadata
   source_channel VARCHAR DEFAULT 'web',
   language VARCHAR DEFAULT 'en',
-  notes TEXT
+  notes TEXT,
+
+  -- Edit tracking
+  user_edited_fields JSONB
 );
 
 -- Conversation messages table
@@ -166,3 +169,36 @@ CREATE INDEX idx_employee_profiles_employee_id_completed
 CREATE INDEX idx_employee_profiles_employee_email_completed
   ON employee_agent.employee_profiles(employee_email, conversation_completed_at DESC)
   WHERE conversation_status = 'completed';
+
+-- Document uploads column
+ALTER TABLE employee_agent.employee_profiles
+  ADD COLUMN IF NOT EXISTS uploaded_documents JSONB;
+
+-- Dedicated document tracking table
+CREATE TABLE IF NOT EXISTS employee_agent.employee_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  employee_id VARCHAR,
+  employee_email VARCHAR,
+  conversation_id UUID REFERENCES employee_agent.employee_profiles(conversation_id),
+  profile_id UUID REFERENCES employee_agent.employee_profiles(id),
+  filename VARCHAR NOT NULL,
+  content_type VARCHAR NOT NULL,
+  file_size_bytes INTEGER NOT NULL,
+  blob_url VARCHAR,
+  blob_path VARCHAR,
+  upload_source VARCHAR DEFAULT 'standalone',
+  extraction_status VARCHAR DEFAULT 'pending',
+  extracted_fields JSONB,
+  extracted_data JSONB,
+  raw_text_length INTEGER,
+  uploaded_at TIMESTAMPTZ DEFAULT now(),
+  processed_at TIMESTAMPTZ,
+  error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_documents_employee_id
+  ON employee_agent.employee_documents(employee_id) WHERE employee_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_employee_documents_conversation_id
+  ON employee_agent.employee_documents(conversation_id) WHERE conversation_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_employee_documents_employee_email
+  ON employee_agent.employee_documents(employee_email) WHERE employee_email IS NOT NULL;

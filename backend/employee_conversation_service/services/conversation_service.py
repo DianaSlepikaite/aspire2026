@@ -501,6 +501,16 @@ class ConversationService:
                     function_calls
                 )
 
+                # Strip out fields the user has manually edited
+                user_edited = employee_profile.user_edited_fields or []
+                if user_edited:
+                    updates_dict = updates.model_dump(exclude_none=True)
+                    filtered = {
+                        k: v for k, v in updates_dict.items()
+                        if k not in user_edited
+                    }
+                    updates = EmployeeProfileUpdate(**filtered)
+
                 # Update employee profile
                 updated_profile = await self.storage_service.update_employee_profile(
                     employee_profile.id,

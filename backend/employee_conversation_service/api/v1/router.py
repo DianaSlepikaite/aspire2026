@@ -8,7 +8,8 @@ from employee_conversation_service.api.v1.endpoints import (
     health,
     conversation,
     employee_profiles,
-    speech
+    speech,
+    document,
 )
 
 api_router = APIRouter()
@@ -36,4 +37,10 @@ api_router.include_router(
     speech.router,
     prefix="/speech",
     tags=["speech"]
+)
+
+api_router.include_router(
+    document.router,
+    prefix="/document",
+    tags=["document"]
 )

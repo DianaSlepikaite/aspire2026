@@ -148,6 +148,25 @@ class Settings(BaseSettings):
         description="Maximum audio file size in MB"
     )
 
+    # Document Upload Configuration
+    AZURE_BLOB_CONNECTION_STRING: str = Field(
+        default="",
+        description="Azure Blob Storage connection string"
+    )
+    AZURE_BLOB_CONTAINER_NAME: str = Field(
+        default="employee-documents",
+        description="Blob container name"
+    )
+    MAX_DOCUMENT_FILE_SIZE_MB: int = Field(
+        default=10,
+        ge=1,
+        description="Max document file size in MB"
+    )
+    ENABLE_DOCUMENT_UPLOAD: bool = Field(
+        default=True,
+        description="Enable document upload functionality"
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -187,6 +206,10 @@ class Settings(BaseSettings):
     def has_azure_speech_credentials(self) -> bool:
         """Check if Azure Speech credentials are configured."""
         return bool(self.AZURE_SPEECH_KEY and self.AZURE_SPEECH_REGION)
+
+    def has_azure_blob_credentials(self) -> bool:
+        """Check if Azure Blob Storage credentials are configured."""
+        return bool(self.AZURE_BLOB_CONNECTION_STRING)
 
     def has_database_credentials(self) -> bool:
         """Check if database credentials are configured."""

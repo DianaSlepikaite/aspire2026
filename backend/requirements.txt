@@ -19,5 +19,12 @@ tenacity>=8.2.0
 python-json-logger>=2.0.0
 email-validator>=2.1.0
 
+# Document parsing
+PyPDF2>=3.0.0
+python-docx>=1.1.0
+
+# Azure Blob Storage
+azure-storage-blob>=12.19.0
+
 # Type checking
 typing-extensions>=4.9.0

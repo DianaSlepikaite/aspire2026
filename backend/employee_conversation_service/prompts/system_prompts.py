@@ -502,4 +502,25 @@ def get_conversation_context(
         if isinstance(goals, dict) and goals.get("short_term_goals"):
             context_parts.append(f"- Short-term goals: {', '.join(goals['short_term_goals'][:2])}")
 
+    # Note document-sourced fields
+    if extracted_data.get("uploaded_documents"):
+        docs = extracted_data["uploaded_documents"]
+        if isinstance(docs, list) and len(docs) > 0:
+            context_parts.append("")
+            context_parts.append(
+                f"Note: {len(docs)} document(s) have been uploaded for this profile."
+            )
+            # Collect all fields that came from documents
+            doc_fields = set()
+            for doc in docs:
+                if isinstance(doc, dict) and doc.get("fields_merged"):
+                    doc_fields.update(doc["fields_merged"])
+            if doc_fields:
+                context_parts.append(
+                    f"Fields populated from documents: {', '.join(sorted(doc_fields))}. "
+                    "These were extracted from uploaded CV/resume. "
+                    "Verify rather than re-ask about these topics — "
+                    "confirm the information is still accurate."
+                )
+
     return "\n".join(context_parts)

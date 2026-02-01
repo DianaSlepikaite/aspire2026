@@ -75,6 +75,12 @@ class ProjectRole(str, Enum):
     QA_ENGINEER = "qa_engineer"
 
 
+class DocumentSource(str, Enum):
+    """Source context for a document upload."""
+    STANDALONE = "standalone"
+    CONVERSATION = "conversation"
+
+
 class MessageRole(str, Enum):
     """Role of a message in conversation."""
     USER = "user"
@@ -380,7 +386,17 @@ class EmployeeProfileBase(BaseModel):
         None,
         description="Additional notes from conversation"
     )
-    
+
+    # Uploaded Documents
+    uploaded_documents: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Metadata for documents uploaded for this profile"
+    )
+
+    # Edit tracking
+    user_edited_fields: Optional[List[str]] = Field(
+        None, description="Fields manually edited by the user (protected from agent overwrite)"
+    )
+
     @field_validator("years_at_ps", "years_total_experience")
     @classmethod
     def validate_years(cls, v):
@@ -596,3 +612,73 @@ class DetailedHealthCheck(BaseModel):
     timestamp: datetime
     services: List[ServiceStatus]
     version: str = "1.0.0"
+
+
+# Document Upload Schemas
+
+class UploadedDocumentMetadata(BaseModel):
+    """Metadata for an uploaded document."""
+    document_id: UUID
+    filename: str
+    content_type: str
+    file_size_bytes: int
+    blob_url: Optional[str] = None
+    upload_source: DocumentSource = DocumentSource.STANDALONE
+    conversation_id: Optional[UUID] = None
+    uploaded_at: datetime
+    extraction_status: str = "pending"
+    extracted_fields: Optional[List[str]] = None
+
+
+class DocumentUploadResponse(BaseModel):
+    """Response from a standalone document upload."""
+    document_id: UUID
+    filename: str
+    blob_url: Optional[str] = None
+    extracted_data: Optional[EmployeeProfileUpdate] = None
+    extraction_summary: Optional[str] = None
+    fields_extracted: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class ConversationDocumentUploadResponse(BaseModel):
+    """Response from an in-conversation document upload."""
+    document_id: UUID
+    filename: str
+    blob_url: Optional[str] = None
+    extracted_data: Optional[EmployeeProfileUpdate] = None
+    extraction_summary: Optional[str] = None
+    fields_extracted: List[str] = Field(default_factory=list)
+    fields_merged: List[str] = Field(default_factory=list)
+    fields_skipped: List[str] = Field(default_factory=list)
+    profile_completeness: int = Field(ge=0, le=100)
+    missing_fields: List[str] = Field(default_factory=list)
+    can_complete: bool = False
+    warnings: List[str] = Field(default_factory=list)
+
+
+class DocumentMetadataResponse(BaseModel):
+    """Response for a single document's metadata."""
+    id: UUID
+    employee_id: Optional[str] = None
+    employee_email: Optional[str] = None
+    conversation_id: Optional[UUID] = None
+    profile_id: Optional[UUID] = None
+    filename: str
+    content_type: str
+    file_size_bytes: int
+    blob_url: Optional[str] = None
+    upload_source: str = "standalone"
+    extraction_status: str = "pending"
+    extracted_fields: Optional[List[str]] = None
+    raw_text_length: Optional[int] = None
+    uploaded_at: datetime
+    processed_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentListResponse(BaseModel):
+    """Response for listing documents."""
+    items: List[DocumentMetadataResponse]
+    total: int

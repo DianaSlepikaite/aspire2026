@@ -53,6 +53,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Azure Speech not configured - speech features will not work")
 
+    # Check Azure Blob Storage configuration
+    if settings.has_azure_blob_credentials():
+        logger.info("Azure Blob Storage configured")
+    else:
+        logger.warning("Azure Blob Storage not configured - document upload will use local fallback")
+
     logger.info("Application startup complete")
 
     yield

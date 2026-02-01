@@ -143,9 +143,28 @@ async def update_employee_profile(
     Update an employee profile.
 
     Allows manual corrections or updates to the profile information.
+    Fields edited here are tracked so the AI agent won't overwrite them.
     """
     try:
         storage_service = StorageService()
+
+        # Track which fields the user is manually editing
+        edited_fields = [
+            k for k, v in update.model_dump(exclude_none=True).items()
+            if k not in (
+                "conversation_status", "conversation_started_at",
+                "conversation_completed_at", "profile_completeness_score",
+                "user_edited_fields", "uploaded_documents",
+            )
+        ]
+
+        if edited_fields:
+            # Fetch current profile to merge with existing edited-fields list
+            current = await storage_service.get_employee_profile(id)
+            if current:
+                existing_edited = current.user_edited_fields or []
+                merged_edited = list(set(existing_edited + edited_fields))
+                update.user_edited_fields = merged_edited
 
         updated_profile = await storage_service.update_employee_profile(id, update)
 
