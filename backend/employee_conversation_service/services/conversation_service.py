@@ -126,6 +126,75 @@ class ConversationService:
             message_type=request.message_type.value,
         )
 
+        explicit_updates = self._extract_explicit_updates(request.message)
+
+        if explicit_updates and row["employee_profile_id"]:
+            profile = await self.storage_service.get_employee_profile(
+                row["employee_profile_id"]
+            )
+            update_data = {}
+            extraction_updates: List[ExtractionUpdate] = []
+            if profile:
+                for field, value in explicit_updates.items():
+                    if value and value != profile.__dict__.get(field):
+                        update_data[field] = value
+                        extraction_updates.append(
+                            ExtractionUpdate(
+                                field_name=field,
+                                field_value=value,
+                                confidence=1.0,
+                            )
+                        )
+                if update_data:
+                    merged_data = {**profile.__dict__, **update_data}
+                    update_data["profile_completeness_score"] = (
+                        self.extraction_service.calculate_completeness(merged_data)
+                    )
+                    await self.storage_service.update_employee_profile(
+                        row["employee_profile_id"], EmployeeProfileUpdate(**update_data)
+                    )
+
+                updated_profile = await self.storage_service.get_employee_profile(
+                    row["employee_profile_id"]
+                )
+                profile_completeness = (
+                    updated_profile.profile_completeness_score if updated_profile else 0
+                )
+                missing_fields = (
+                    self.extraction_service.get_missing_fields(updated_profile.__dict__)
+                    if updated_profile
+                    else []
+                )
+            else:
+                profile_completeness = 0
+                missing_fields = []
+
+            fields = ", ".join(explicit_updates.keys())
+            assistant_message = (
+                f"Got it — I’ve updated your {fields}. "
+                "Let me know if you want to change anything else."
+            )
+
+            msg_id = await self.storage_service.save_employee_message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_message,
+                message_type=MessageType.TEXT.value,
+            )
+
+            return MessageResponse(
+                conversation_id=conversation_id,
+                message_id=msg_id,
+                employee_profile_id=row["employee_profile_id"],
+                assistant_message=assistant_message,
+                audio_url=None,
+                extraction_updates=extraction_updates if extraction_updates else None,
+                profile_completeness=profile_completeness,
+                missing_fields=missing_fields,
+                can_complete=profile_completeness
+                >= getattr(self.settings, "MIN_PROFILE_COMPLETENESS_FOR_COMPLETION", 70),
+            )
+
         messages = await self.storage_service.get_employee_messages(conversation_id)
         api_messages = self.openai_service.build_conversation_history(messages)
         openai_response = await self.openai_service.generate_response(
@@ -153,9 +222,6 @@ class ConversationService:
 
                 # Extract profile data from conversation
                 extracted_data = await self.extraction_service.extract_from_conversation(message_dicts)
-                explicit_updates = self._extract_explicit_updates(request.message)
-                if explicit_updates:
-                    extracted_data = {**extracted_data, **explicit_updates}
 
                 if extracted_data:
                     # Get current profile
@@ -214,6 +280,7 @@ class ConversationService:
         return MessageResponse(
             conversation_id=conversation_id,
             message_id=msg_id,
+            employee_profile_id=row["employee_profile_id"],
             assistant_message=assistant_message,
             audio_url=None,
             extraction_updates=extraction_updates if extraction_updates else None,

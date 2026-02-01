@@ -164,6 +164,10 @@ export function DarkSidebar({
 
           const response = await sendEmployeeMessage(activeConversationId, { message, message_type: messageType });
           setChatMessages((prev) => [...prev, { role: "assistant", content: response.assistant_message }]);
+          if (response.employee_profile_id) {
+            setEmployeeProfileId(response.employee_profile_id);
+            activeProfileId = response.employee_profile_id;
+          }
           if (activeProfileId) {
             queryClient.invalidateQueries({ queryKey: ["employee-profile", activeProfileId] });
             queryClient.invalidateQueries({ queryKey: ["employee-documents", activeProfileId] });
