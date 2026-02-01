@@ -5,8 +5,8 @@ export default function BusinessReports() {
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-2xl font-black tracking-tight">Business Reports</h3>
-          <p className="text-muted-foreground mt-2">
+          <h3 className="text-2xl font-bold tracking-tight">Business Reports</h3>
+          <p className="text-muted-foreground text-sm mt-2">
             Monitor staffing health, pipeline velocity, and project utilization.
           </p>
         </div>

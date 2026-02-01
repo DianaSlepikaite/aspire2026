@@ -2,6 +2,7 @@ import { Mic, MessageSquare, FileUp, PlusCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface DarkSidebarProps {
   userName?: string;
@@ -16,6 +17,7 @@ export function DarkSidebar({
   userImage = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
   variant = "career",
 }: DarkSidebarProps) {
+  const navigate = useNavigate();
   const isBusiness = variant === "business";
   return (
     <aside className="w-1/2 min-w-[400px] h-full bg-background flex flex-col border-r border-border p-8">
@@ -99,7 +101,7 @@ export function DarkSidebar({
           <p className="text-foreground text-sm font-semibold truncate">{userName}</p>
           <p className="text-muted-foreground text-xs truncate">{userRole}</p>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button onClick={() => navigate("/", { replace: true })} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-5">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
             <polyline points="16 17 21 12 16 7" />

@@ -63,11 +63,11 @@ const filterChips = [
 
 export default function BusinessStaffing() {
   return (
-    <section className="space-y-8">
+    <section className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-2xl font-bold leading-tight tracking-tight">Match Orchestration</h3>
-          <p className="text-muted-foreground text-base">12 Active Projects, 48 Optimal Matches Found</p>
+          <p className="text-muted-foreground text-sm">12 Active Projects, 48 Optimal Matches Found</p>
         </div>
         <div className="flex gap-3">
           <Button className="font-bold">
@@ -98,8 +98,8 @@ export default function BusinessStaffing() {
         ))}
       </div>
 
-      <div className="space-y-8">
-        <h4 className="text-2xl font-bold tracking-tight px-1 flex items-center gap-2">
+      <div className="space-y-6">
+        <h4 className="text-lg font-bold tracking-tight flex items-center gap-2">
           <Zap className="size-5 text-primary" />
           Active Project Matches
         </h4>
@@ -109,7 +109,7 @@ export default function BusinessStaffing() {
         ))}
       </div>
 
-      <div className="mt-8 flex flex-col items-center gap-3">
+      <div className="mt-6 flex flex-col items-center gap-3">
         <Button variant="outline" size="lg" className="font-bold">
           <ChevronDown className="size-4 mr-2" />
           Load More Projects

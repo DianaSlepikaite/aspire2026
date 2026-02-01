@@ -52,11 +52,11 @@ const tabs = ["Client", "Project", "Roles", "Documents"];
 
 export default function BusinessRoles() {
   return (
-    <section className="space-y-8">
+    <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-2xl font-black tracking-tight">Roles Management</h3>
-          <p className="text-muted-foreground mt-2">
+          <h3 className="text-2xl font-bold tracking-tight">Roles Management</h3>
+          <p className="text-muted-foreground text-sm mt-2">
             Allocate and optimize staffing for active project cycles.
           </p>
         </div>
@@ -70,7 +70,7 @@ export default function BusinessRoles() {
           <div key={idx} className="flex flex-col gap-2 rounded-xl p-6 border border-border bg-card">
             <p className="text-muted-foreground text-sm font-medium">{stat.label}</p>
             <div className="flex items-end justify-between">
-              <p className="text-3xl font-bold">{stat.value}</p>
+              <p className="text-2xl font-bold">{stat.value}</p>
               <span className={`text-sm font-bold flex items-center gap-1 ${stat.up ? "text-success" : "text-warning"}`}>
                 {stat.up ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
                 {stat.change}
