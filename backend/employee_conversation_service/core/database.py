@@ -3,11 +3,15 @@ Database connection and management for PostgreSQL.
 """
 
 import json
+from pathlib import Path
 from typing import Optional
 import asyncpg
 
 from employee_conversation_service.config import get_settings
 from employee_conversation_service.core.exceptions import ConfigurationError, StorageError
+
+# Path to schema.sql relative to this file (core/database.py -> ../schema.sql)
+SCHEMA_SQL_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 
 
 _db_pool: Optional[asyncpg.Pool] = None
@@ -68,9 +72,36 @@ async def get_db_pool() -> asyncpg.Pool:
     return _db_pool
 
 
+async def _ensure_schema(pool: asyncpg.Pool):
+    """
+    Check whether the employee_agent schema exists and create it
+    (along with all tables, types, and indexes) from schema.sql if not.
+    """
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval(
+            "SELECT EXISTS("
+            "  SELECT 1 FROM information_schema.schemata"
+            "  WHERE schema_name = 'employee_agent'"
+            ")"
+        )
+        if exists:
+            return
+
+        if not SCHEMA_SQL_PATH.is_file():
+            raise StorageError(
+                f"Schema file not found at {SCHEMA_SQL_PATH}. "
+                "Cannot initialise the employee_agent schema."
+            )
+
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        await conn.execute(schema_sql)
+        print(f"Database schema initialised from {SCHEMA_SQL_PATH}")
+
+
 async def initialize_database():
     """
     Initialize database connection on application startup.
+    Creates the employee_agent schema if it does not already exist.
     """
     try:
         pool = await get_db_pool()
@@ -78,6 +109,9 @@ async def initialize_database():
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         print("Database connection established successfully")
+
+        # Ensure schema & tables exist
+        await _ensure_schema(pool)
     except Exception as e:
         # Log error but don't fail startup - allow graceful degradation
         print(f"Warning: Database initialization failed: {e}")
