@@ -64,7 +64,6 @@ export function DarkSidebar({
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [aiState, setAiState] = useState<"idle" | "listening" | "thinking" | "talking">("idle");
-  const [hasConversationStarted, setHasConversationStarted] = useState(false);
   const [currentClientNeedId, setCurrentClientNeedId] = useState<string | null>(null);
   const {
     employeeProfileId,
@@ -90,6 +89,8 @@ export function DarkSidebar({
   const handleSendMessageRef = useRef<
     ((messageOverride?: string, messageType?: "text" | "speech") => void) | null
   >(null);
+  const isMountedRef = useRef(true);
+  const aiTimeoutRef = useRef<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const careerFileInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -101,7 +102,26 @@ export function DarkSidebar({
 
   const isSubmitting = uploadText.isPending || uploadFile.isPending || processIntake.isPending;
   const isChatBusy = isSubmitting || aiState === "thinking";
+  const hasConversationStarted =
+    chatMessages.length > 0 || Boolean(currentClientNeedId) || Boolean(employeeProfileId);
   const showWelcome = chatMessages.length === 0;
+
+  const setStatus = (message: string | null, isError: boolean) => {
+    if (!isMountedRef.current) return;
+    setStatusMessage(message);
+    setStatusIsError(isError);
+  };
+
+  const scheduleAiIdle = (delayMs: number) => {
+    if (aiTimeoutRef.current) {
+      window.clearTimeout(aiTimeoutRef.current);
+    }
+    aiTimeoutRef.current = window.setTimeout(() => {
+      if (isMountedRef.current) {
+        setAiState("idle");
+      }
+    }, delayMs);
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -133,15 +153,8 @@ export function DarkSidebar({
   }, []);
 
   useEffect(() => {
-    if (!isBusiness && employeeProfileId) {
-      setHasConversationStarted(true);
-    }
-  }, [isBusiness, employeeProfileId]);
-
-  useEffect(() => {
     if (activeClientNeedId) {
       setCurrentClientNeedId(activeClientNeedId);
-      setHasConversationStarted(true);
     }
   }, [activeClientNeedId]);
 
@@ -152,6 +165,17 @@ export function DarkSidebar({
 
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
+      if (aiTimeoutRef.current) {
+        window.clearTimeout(aiTimeoutRef.current);
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          // Ignore stop errors on unmount.
+        }
+      }
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause();
         audioPlayerRef.current = null;
@@ -163,7 +187,6 @@ export function DarkSidebar({
     const message = (messageOverride ?? chatInput).trim();
     if (!message) return;
 
-    setHasConversationStarted(true);
     setChatMessages((prev) => [...prev, { role: "user", content: message }]);
     setChatInput("");
     setAiState("thinking");
@@ -224,8 +247,7 @@ export function DarkSidebar({
               setAiState("idle");
             }
           } else {
-            setAiState("talking");
-            window.setTimeout(() => setAiState("idle"), 1200);
+            setAiState("idle");
           }
           return;
         } catch (conversationError) {
@@ -302,8 +324,7 @@ export function DarkSidebar({
         queryClient.invalidateQueries({ queryKey: ["client-needs"] });
         queryClient.invalidateQueries({ queryKey: ["client-need", currentClientNeedId] });
 
-        setAiState("talking");
-        window.setTimeout(() => setAiState("idle"), 1200);
+        setAiState("idle");
         return;
       }
 
@@ -342,8 +363,7 @@ export function DarkSidebar({
         onClientNeedCreated?.(derivedClientNeedId);
         queryClient.invalidateQueries({ queryKey: ["client-need", derivedClientNeedId] });
       }
-      setAiState("talking");
-      window.setTimeout(() => setAiState("idle"), 1500);
+      setAiState("idle");
     } catch (error) {
       console.error("Chat request failed.", error);
       setChatMessages((prev) => [
@@ -376,8 +396,7 @@ export function DarkSidebar({
   }
 
   async function handleSubmitIntake() {
-    setStatusMessage(null);
-    setStatusIsError(false);
+    setStatus(null, false);
     try {
       let intakeId: string | null = null;
       let uploadLabel: string | null = null;
@@ -385,7 +404,6 @@ export function DarkSidebar({
         setCurrentClientNeedId(null);
       }
       if (intakeFile) {
-        setHasConversationStarted(true);
         const response = await uploadFile.mutateAsync({
           file: intakeFile,
           client_name: clientName || undefined,
@@ -394,7 +412,6 @@ export function DarkSidebar({
         intakeId = response.id;
         uploadLabel = `Uploaded file: ${intakeFile.name}`;
       } else if (briefText.trim()) {
-        setHasConversationStarted(true);
         const response = await uploadText.mutateAsync({
           text_content: briefText.trim(),
           client_name: clientName || undefined,
@@ -404,8 +421,7 @@ export function DarkSidebar({
         intakeId = response.id;
         uploadLabel = "Uploaded brief text";
       } else {
-        setStatusMessage("Add a brief or upload a file to start intake.");
-        setStatusIsError(true);
+        setStatus("Add a brief or upload a file to start intake.", true);
         return;
       }
 
@@ -446,11 +462,9 @@ export function DarkSidebar({
           queryClient.invalidateQueries({ queryKey: ["client-needs"] });
           queryClient.invalidateQueries({ queryKey: ["client-need", clientNeedId] });
           queryClient.invalidateQueries({ queryKey: ["client-need-matches", clientNeedId] });
-          setStatusMessage("Client need created and ready for review.");
-          setStatusIsError(false);
+          setStatus("Client need created and ready for review.", false);
         } else {
-          setStatusMessage("Intake processed, but client need ID was not returned.");
-          setStatusIsError(true);
+          setStatus("Intake processed, but client need ID was not returned.", true);
         }
       } catch (agentError) {
         console.error("Agent processing failed after upload.", agentError);
@@ -460,20 +474,17 @@ export function DarkSidebar({
             role: "assistant",
             content:
               "Your upload was received, but the agent could not process it right now. Please try again in a moment.",
-          },
-        ]);
-        setStatusMessage("Upload succeeded, but agent processing failed.");
-        setStatusIsError(true);
+            },
+          ]);
+        setStatus("Upload succeeded, but agent processing failed.", true);
       }
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Failed to process intake.");
-      setStatusIsError(true);
+      setStatus(error instanceof Error ? error.message : "Failed to process intake.", true);
     }
   }
 
   function handleCareerFileUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
-    setHasConversationStarted(true);
     const file = files[0];
     setChatMessages((prev) => [...prev, { role: "user", content: `Uploaded file: ${file.name}` }]);
     processEmployeeUpload({
@@ -718,9 +729,6 @@ export function DarkSidebar({
                 onChange={(event) => {
                   const file = event.target.files?.[0] || null;
                   setIntakeFile(file);
-                  if (file) {
-                    setHasConversationStarted(true);
-                  }
                 }}
                 aria-label="Upload brief file"
                 aria-describedby={statusMessage ? "intake-status" : undefined}
