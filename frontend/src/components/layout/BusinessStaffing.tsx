@@ -46,7 +46,7 @@ export default function BusinessStaffing({
     offset: 0,
   });
 
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
   const total = data?.total ?? 0;
   const runMap = new Map(agentRuns.filter((run) => run.client_need_id).map((run) => [run.client_need_id!, run]));
 

@@ -17,7 +17,7 @@ const filters = [
 export default function Matches() {
   const { employeeProfileId } = useEmployeeContext();
   const { data, isLoading, isError } = useClientNeedsList({ limit: 12, offset: 0 });
-  const needs = data?.items ?? [];
+  const needs = useMemo(() => data?.items ?? [], [data?.items]);
 
   const matchQueries = useQueries({
     queries: needs.map((need) => ({
