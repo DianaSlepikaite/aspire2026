@@ -20,6 +20,12 @@ export default function Mode() {
   //add mode tracking to use in App for switching profiles between business and career apps
   return (
     <div className="layout-container flex min-h-screen flex-col dark">
+      <a
+        href="#mode-main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:shadow"
+      >
+        Skip to main content
+      </a>
       {/* Top Navigation */}
       <header className="flex items-center justify-between border-b border-border px-6 md:px-20 py-4 bg-background sticky top-0 z-50">
         <div className="flex items-center gap-4">
@@ -48,7 +54,10 @@ export default function Mode() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center px-6 py-10 md:py-16 max-w-5xl mx-auto w-full">
+      <main
+        id="mode-main-content"
+        className="flex-1 flex flex-col items-center px-6 py-10 md:py-16 max-w-5xl mx-auto w-full"
+      >
         {/* Hero Text */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">

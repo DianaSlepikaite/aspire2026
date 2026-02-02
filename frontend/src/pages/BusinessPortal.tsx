@@ -90,7 +90,13 @@ export default function BusinessPortal() {
           }}
         />
 
-        <main className="flex-1 h-full bg-background overflow-y-auto">
+        <a
+          href="#business-main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:shadow"
+        >
+          Skip to main content
+        </a>
+        <main id="business-main-content" className="flex-1 h-full bg-background overflow-y-auto">
           <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md px-10 py-6 border-b border-border flex justify-between items-center">
             <div className="flex gap-8" role="tablist" aria-label="Business sections">
               <button
@@ -99,7 +105,7 @@ export default function BusinessPortal() {
                 id="tab-staffing"
                 aria-controls="tabpanel-staffing"
                 aria-selected={activeTab === "staffing"}
-                className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
+                className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   activeTab === "staffing" ? "text-primary font-bold border-b-2 border-primary" : ""
                 }`}
                 onClick={() => setActiveTab("staffing")}
@@ -112,7 +118,7 @@ export default function BusinessPortal() {
                 id="tab-roles"
                 aria-controls="tabpanel-roles"
                 aria-selected={activeTab === "roles"}
-                className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
+                className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   activeTab === "roles" ? "text-primary font-bold border-b-2 border-primary" : ""
                 }`}
                 onClick={() => setActiveTab("roles")}
@@ -125,7 +131,7 @@ export default function BusinessPortal() {
                 id="tab-reports"
                 aria-controls="tabpanel-reports"
                 aria-selected={activeTab === "reports"}
-                className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
+                className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   activeTab === "reports" ? "text-primary font-bold border-b-2 border-primary" : ""
                 }`}
                 onClick={() => setActiveTab("reports")}

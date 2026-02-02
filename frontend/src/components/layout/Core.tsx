@@ -369,7 +369,7 @@ export default function Core() {
     return (
       <button
         type="button"
-        className={`min-h-[40px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate ${
+        className={`min-h-[40px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
           displayClassName ?? ""
         }`}
         onClick={() => setEditingField(field)}
@@ -410,7 +410,7 @@ export default function Core() {
     return (
       <button
         type="button"
-        className={`min-h-[120px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap ${
+        className={`min-h-[120px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
           displayClassName ?? ""
         }`}
         onClick={() => setEditingField(field)}
@@ -936,12 +936,12 @@ export default function Core() {
                       </div>
                     </>
                   ) : (
-                    <button
-                      type="button"
-                      className="min-h-[64px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
-                      onClick={() => setEditingField(key)}
-                      aria-label={`Edit education entry ${idx + 1}`}
-                    >
+                  <button
+                    type="button"
+                    className="min-h-[64px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    onClick={() => setEditingField(key)}
+                    aria-label={`Edit education entry ${idx + 1}`}
+                  >
                       {label || <span className="text-muted-foreground">Click to add education</span>}
                     </button>
                   )}
@@ -1012,7 +1012,7 @@ export default function Core() {
                   ) : (
                     <button
                       type="button"
-                      className="min-h-[90px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
+                      className="min-h-[90px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       onClick={() => setEditingField(key)}
                       aria-label={`Edit experience highlight ${idx + 1}`}
                     >

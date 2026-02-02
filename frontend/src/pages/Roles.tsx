@@ -108,7 +108,13 @@ export default function Roles() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-y-auto">
+        <a
+          href="#roles-main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:shadow"
+        >
+          Skip to main content
+        </a>
+        <main id="roles-main-content" className="flex-1 flex flex-col overflow-y-auto">
         {/* Top Nav Bar */}
         <header className="flex items-center justify-between h-16 border-b border-border px-8 bg-background/50 backdrop-blur-md sticky top-0 z-10">
           <nav className="flex items-center gap-6">
