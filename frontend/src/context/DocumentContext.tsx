@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useState } from "react";
 
 export type DocumentStatus = "Signed" | "Pending Review" | "Completed" | "Uploaded";
@@ -25,30 +26,30 @@ const DocumentContext = createContext<DocumentContextValue | null>(null);
 const seededDocuments: DocumentItem[] = [
   {
     id: "doc-1",
-    name: "Employment_Contract_2024.pdf",
+    name: "Employment_Contract_2026.pdf",
     status: "Signed",
-    date: "Oct 12, 2023",
+    date: "Oct 12, 2025",
     type: "Contract",
   },
   {
     id: "doc-2",
     name: "PMP_Certification_Renewal.pdf",
     status: "Pending Review",
-    date: "Jan 05, 2024",
+    date: "Jan 05, 2026",
     type: "Certificate",
   },
   {
     id: "doc-3",
     name: "Annual_Performance_Review_Q4.pdf",
     status: "Completed",
-    date: "Dec 20, 2023",
+    date: "Dec 20, 2025",
     type: "Review",
   },
   {
     id: "doc-4",
     name: "Resume_Sarah_Jenkins.pdf",
     status: "Uploaded",
-    date: "Jan 10, 2024",
+    date: "Jan 10, 2026",
     type: "Resume",
   },
 ];

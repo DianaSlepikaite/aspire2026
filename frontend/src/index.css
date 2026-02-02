@@ -17,7 +17,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 224 71% 4%;
 
-    --primary: 357 99% 63%;
+    --primary: 357 99% 45%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 14% 96%;
@@ -70,7 +70,7 @@
     --popover: 0 9% 8%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 357 99% 63%;
+    --primary: 357 99% 45%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 0 13% 14%;
@@ -147,5 +147,14 @@
   .bg-dot-pattern {
     background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
     background-size: 24px 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

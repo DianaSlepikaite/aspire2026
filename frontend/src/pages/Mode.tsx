@@ -20,6 +20,12 @@ export default function Mode() {
   //add mode tracking to use in App for switching profiles between business and career apps
   return (
     <div className="layout-container flex min-h-screen flex-col dark">
+      <a
+        href="#mode-main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:shadow"
+      >
+        Skip to main content
+      </a>
       {/* Top Navigation */}
       <header className="flex items-center justify-between border-b border-border px-6 md:px-20 py-4 bg-background sticky top-0 z-50">
         <div className="flex items-center gap-4">
@@ -35,6 +41,7 @@ export default function Mode() {
             variant="ghost"
             size="icon"
             className="bg-secondary text-muted-foreground hover:text-foreground"
+            aria-label="Notifications"
           >
             <Bell className="size-5" />
           </Button>
@@ -47,7 +54,10 @@ export default function Mode() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center px-6 py-10 md:py-16 max-w-5xl mx-auto w-full">
+      <main
+        id="mode-main-content"
+        className="flex-1 flex flex-col items-center px-6 py-10 md:py-16 max-w-5xl mx-auto w-full"
+      >
         {/* Hero Text */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
@@ -74,9 +84,9 @@ export default function Mode() {
               <div className="absolute inset-0 rounded-full bg-primary/10 blur-xl scale-150 opacity-70" />
               <div className="absolute inset-0 rounded-full border border-primary/20 scale-125 animate-pulse" />
 
-              <button className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-transform">
+              <div className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
                 <Briefcase className="size-10" />
-              </button>
+              </div>
             </div>
             <span className="text-xs font-bold uppercase tracking-tighter text-muted-foreground/60">
               Click to enter Career
@@ -96,9 +106,9 @@ export default function Mode() {
               <div className="absolute inset-0 rounded-full bg-primary/10 blur-xl scale-150 opacity-70" />
               <div className="absolute inset-0 rounded-full border border-primary/20 scale-125 animate-pulse" />
 
-              <button className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-transform">
+              <div className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
                 <Users className="size-10" />
-              </button>
+              </div>
 
               {/* matching indicator dots */}
               <div className="absolute left-2 top-1/2 -translate-y-1/2 size-3 rounded-full bg-primary animate-pulse" />

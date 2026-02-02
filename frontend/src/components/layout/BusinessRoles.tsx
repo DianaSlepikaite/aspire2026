@@ -23,6 +23,9 @@ export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRoles
         min_match_score: 0,
       }),
     enabled: Boolean(clientNeedId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // API data is source of truth; agentRuns supplements fields the backend doesn't store
@@ -192,7 +195,7 @@ export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRoles
                           </div>
                           <p className="text-[10px] font-semibold text-muted-foreground mt-1 uppercase">Match</p>
                         </div>
-                        <Button variant="outline" size="icon">
+                        <Button variant="outline" size="icon" aria-label={`View ${match.employee_name}`}>
                           <Eye className="size-4" />
                         </Button>
                         <Button className="font-semibold">Staff Role</Button>

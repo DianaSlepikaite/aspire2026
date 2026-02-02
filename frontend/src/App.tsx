@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Matches from "./components/layout/Matches";
 import Roles from "./pages/Roles";
-import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 import Mode from "./pages/Mode";
 import Core from "./components/layout/Core";
@@ -24,7 +23,6 @@ const App = () => (
           {/* Select Mode */}
           <Route path="/" element={<Mode/>}/>
           {/* Career profile routes */}
-          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/portal" element={<Index />} />
           <Route path="/matches" element={<Matches />} />
           <Route path="/cv" element={<Core/>}/>

@@ -15,6 +15,7 @@ import { useEmployeeContext } from "@/context/EmployeeContext";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -55,7 +56,7 @@ export default function Profile() {
       <section>
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold">Your Overview</h3>
-          <Button variant="link" className="text-primary font-semibold">
+          <Button variant="link" className="text-foreground hover:text-primary font-semibold">
             Edit Profile
           </Button>
         </div>
@@ -76,7 +77,7 @@ export default function Profile() {
       <section>
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold">Recommended Learning</h3>
-          <Button variant="link" className="text-primary font-semibold">
+          <Button variant="link" className="text-foreground hover:text-primary font-semibold">
             Explore Catalog
           </Button>
         </div>
@@ -97,6 +98,7 @@ export default function Profile() {
               type="file"
               multiple
               className="hidden"
+              aria-label="Upload document"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
@@ -121,7 +123,7 @@ export default function Profile() {
             />
             <Button
               variant="link"
-              className="text-primary font-semibold flex items-center gap-1"
+              className="text-foreground hover:text-primary font-semibold flex items-center gap-1"
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="size-4" />
@@ -166,6 +168,7 @@ export default function Profile() {
                       size="icon"
                       className="text-muted-foreground hover:text-primary"
                       onClick={() => handleFileAction(doc)}
+                      aria-label={`View ${doc.file_name ?? "document"}`}
                     >
                       <Eye className="size-4" />
                     </Button>
@@ -187,6 +190,7 @@ export default function Profile() {
                             // noop
                           });
                       }}
+                      aria-label={`Delete ${doc.file_name ?? "document"}`}
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -225,6 +229,9 @@ export default function Profile() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{selectedDoc?.file_name ?? "Document Preview"}</DialogTitle>
+            <DialogDescription>
+              Preview the document contents. Press Escape to close.
+            </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground max-h-[70vh] overflow-auto whitespace-pre-wrap">
             {previewText
