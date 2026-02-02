@@ -180,7 +180,7 @@ export default function Roles() {
           {/* Page Heading */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-4xl font-black tracking-tight leading-tight">Roles Management</h2>
+              <h1 className="text-4xl font-black tracking-tight leading-tight">Roles Management</h1>
               <p className="text-muted-foreground text-base mt-2">
                 Allocate and optimize staffing for active project cycles.
               </p>

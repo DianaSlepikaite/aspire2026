@@ -16,6 +16,7 @@ import { useEmployeeContext } from "@/context/EmployeeContext";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -351,8 +352,20 @@ export default function Core() {
     inputId?: string;
     labelId?: string;
     ariaLabel?: string;
+    describedById?: string;
   }) {
-    const { field, value, placeholder, onChange, className, displayClassName, inputId, labelId, ariaLabel } = opts;
+    const {
+      field,
+      value,
+      placeholder,
+      onChange,
+      className,
+      displayClassName,
+      inputId,
+      labelId,
+      ariaLabel,
+      describedById,
+    } = opts;
     if (editingField === field) {
       return (
         <Input
@@ -363,6 +376,7 @@ export default function Core() {
           className={className}
           aria-labelledby={labelId}
           aria-label={ariaLabel}
+          aria-describedby={describedById}
         />
       );
     }
@@ -376,6 +390,7 @@ export default function Core() {
         title={value}
         aria-labelledby={labelId}
         aria-label={ariaLabel}
+        aria-describedby={describedById}
       >
         {value || <span className="text-muted-foreground">{placeholder ?? "Click to edit"}</span>}
       </button>
@@ -392,8 +407,20 @@ export default function Core() {
     inputId?: string;
     labelId?: string;
     ariaLabel?: string;
+    describedById?: string;
   }) {
-    const { field, value, placeholder, onChange, className, displayClassName, inputId, labelId, ariaLabel } = opts;
+    const {
+      field,
+      value,
+      placeholder,
+      onChange,
+      className,
+      displayClassName,
+      inputId,
+      labelId,
+      ariaLabel,
+      describedById,
+    } = opts;
     if (editingField === field) {
       return (
         <Textarea
@@ -404,6 +431,7 @@ export default function Core() {
           className={className}
           aria-labelledby={labelId}
           aria-label={ariaLabel}
+          aria-describedby={describedById}
         />
       );
     }
@@ -417,6 +445,7 @@ export default function Core() {
         title={value}
         aria-labelledby={labelId}
         aria-label={ariaLabel}
+        aria-describedby={describedById}
       >
         {value || <span className="text-muted-foreground">{placeholder ?? "Click to edit"}</span>}
       </button>
@@ -484,6 +513,9 @@ export default function Core() {
             <h4 className="text-lg font-semibold">Personal & Contact</h4>
             <Badge variant="secondary">Editable</Badge>
           </div>
+          <p id="core-editing-hint" className="sr-only">
+            Press Enter to edit a field. Use Tab to move between fields.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label
@@ -502,6 +534,7 @@ export default function Core() {
                   inputId: "core-full-name",
                   labelId: "core-full-name-label",
                   ariaLabel: "Full name",
+                  describedById: "core-editing-hint",
                 })}
             </div>
             <div>
@@ -522,6 +555,7 @@ export default function Core() {
                     onChange={(event) => setLocationDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
                     aria-labelledby="core-location-label"
+                    aria-describedby="core-editing-hint"
                   />
                 ) : (
                   <button
@@ -530,6 +564,7 @@ export default function Core() {
                     onClick={() => setEditingField("location")}
                     title={locationDraft}
                     aria-labelledby="core-location-label"
+                    aria-describedby="core-editing-hint"
                   >
                     {locationDraft || <span className="text-muted-foreground">Location</span>}
                   </button>
@@ -554,6 +589,7 @@ export default function Core() {
                     onChange={(event) => setEmailDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
                     aria-labelledby="core-email-label"
+                    aria-describedby="core-editing-hint"
                   />
                 ) : (
                   <button
@@ -562,6 +598,7 @@ export default function Core() {
                     onClick={() => setEditingField("email")}
                     title={emailDraft}
                     aria-labelledby="core-email-label"
+                    aria-describedby="core-editing-hint"
                   >
                     {emailDraft || <span className="text-muted-foreground">Email</span>}
                   </button>
@@ -586,6 +623,7 @@ export default function Core() {
                     onChange={(event) => setPhoneDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
                     aria-labelledby="core-phone-label"
+                    aria-describedby="core-editing-hint"
                   />
                 ) : (
                   <button
@@ -594,6 +632,7 @@ export default function Core() {
                     onClick={() => setEditingField("phone")}
                     title={phoneDraft}
                     aria-labelledby="core-phone-label"
+                    aria-describedby="core-editing-hint"
                   >
                     {phoneDraft || <span className="text-muted-foreground">Phone</span>}
                   </button>
@@ -627,6 +666,7 @@ export default function Core() {
                     onChange={(event) => setTitleDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
                     aria-labelledby="core-title-label"
+                    aria-describedby="core-editing-hint"
                   />
                 ) : (
                   <button
@@ -635,6 +675,7 @@ export default function Core() {
                     onClick={() => setEditingField("title")}
                     title={titleDraft}
                     aria-labelledby="core-title-label"
+                    aria-describedby="core-editing-hint"
                   >
                     {titleDraft || <span className="text-muted-foreground">Title</span>}
                   </button>
@@ -659,6 +700,7 @@ export default function Core() {
                     onChange={(event) => setDepartmentDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
                     aria-labelledby="core-department-label"
+                    aria-describedby="core-editing-hint"
                   />
                 ) : (
                   <button
@@ -667,6 +709,7 @@ export default function Core() {
                     onClick={() => setEditingField("department")}
                     title={departmentDraft}
                     aria-labelledby="core-department-label"
+                    aria-describedby="core-editing-hint"
                   >
                     {departmentDraft || <span className="text-muted-foreground">Department</span>}
                   </button>
@@ -681,15 +724,16 @@ export default function Core() {
               >
                 Manager
               </label>
-            {renderEditableText({
-              field: "manager",
-              value: managerDraft,
-              placeholder: "Manager",
-              onChange: setManagerDraft,
-              inputId: "core-manager",
-              labelId: "core-manager-label",
-              ariaLabel: "Manager",
-            })}
+              {renderEditableText({
+                field: "manager",
+                value: managerDraft,
+                placeholder: "Manager",
+                onChange: setManagerDraft,
+                inputId: "core-manager",
+                labelId: "core-manager-label",
+                ariaLabel: "Manager",
+                describedById: "core-editing-hint",
+              })}
             </div>
             <div>
               <label
@@ -709,6 +753,7 @@ export default function Core() {
                     onChange={(event) => setStartDateDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
                     aria-labelledby="core-start-date-label"
+                    aria-describedby="core-editing-hint"
                   />
                 ) : (
                   <button
@@ -717,6 +762,7 @@ export default function Core() {
                     onClick={() => setEditingField("startDate")}
                     title={startDateDraft}
                     aria-labelledby="core-start-date-label"
+                    aria-describedby="core-editing-hint"
                   >
                     {startDateDraft || <span className="text-muted-foreground">Start date</span>}
                   </button>
@@ -739,6 +785,7 @@ export default function Core() {
                 inputId: "core-employment-type",
                 labelId: "core-employment-type-label",
                 ariaLabel: "Employment type",
+                describedById: "core-editing-hint",
               })}
             </div>
           </div>
@@ -759,16 +806,17 @@ export default function Core() {
             >
               Professional Summary
             </label>
-            {renderEditableTextarea({
-              field: "summary",
-              value: summaryDraft,
-              placeholder: "Professional summary",
-              onChange: setSummaryDraft,
-              className: "min-h-[120px]",
-              inputId: "core-summary",
-              labelId: "core-summary-label",
-              ariaLabel: "Professional summary",
-            })}
+          {renderEditableTextarea({
+            field: "summary",
+            value: summaryDraft,
+            placeholder: "Professional summary",
+            onChange: setSummaryDraft,
+            className: "min-h-[120px]",
+            inputId: "core-summary",
+            labelId: "core-summary-label",
+            ariaLabel: "Professional summary",
+            describedById: "core-editing-hint",
+          })}
           </div>
           <div>
             <label
@@ -778,16 +826,17 @@ export default function Core() {
             >
               Career Goals
             </label>
-            {renderEditableTextarea({
-              field: "goals",
-              value: goalsDraft,
-              placeholder: "Career goals",
-              onChange: setGoalsDraft,
-              className: "min-h-[120px]",
-              inputId: "core-goals",
-              labelId: "core-goals-label",
-              ariaLabel: "Career goals",
-            })}
+          {renderEditableTextarea({
+            field: "goals",
+            value: goalsDraft,
+            placeholder: "Career goals",
+            onChange: setGoalsDraft,
+            className: "min-h-[120px]",
+            inputId: "core-goals",
+            labelId: "core-goals-label",
+            ariaLabel: "Career goals",
+            describedById: "core-editing-hint",
+          })}
           </div>
         </div>
         <div>
@@ -807,6 +856,7 @@ export default function Core() {
             inputId: "core-strengths",
             labelId: "core-strengths-label",
             ariaLabel: "Core strengths",
+            describedById: "core-editing-hint",
           })}
         </div>
       </div>
@@ -1229,6 +1279,9 @@ export default function Core() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{selectedDoc?.file_name ?? "Document Preview"}</DialogTitle>
+            <DialogDescription>
+              Preview the document contents. Press Escape to close.
+            </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground max-h-[70vh] overflow-auto whitespace-pre-wrap">
             {previewText

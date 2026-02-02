@@ -97,6 +97,7 @@ export default function BusinessPortal() {
           Skip to main content
         </a>
         <main id="business-main-content" className="flex-1 h-full bg-background overflow-y-auto">
+          <h1 className="sr-only">Business Dashboard</h1>
           <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md px-10 py-6 border-b border-border flex justify-between items-center">
             <div className="flex gap-8" role="tablist" aria-label="Business sections">
               <button

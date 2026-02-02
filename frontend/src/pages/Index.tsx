@@ -32,6 +32,7 @@ export default function Index() {
         Skip to main content
       </a>
       <main id="main-content" className="flex-1 h-full bg-background overflow-y-auto">
+        <h1 className="sr-only">Career Dashboard</h1>
         {/* Header */}
         <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md px-10 py-6 border-b border-border flex justify-between items-center">
           <div className="flex items-center gap-8">

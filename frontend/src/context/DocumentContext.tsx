@@ -27,7 +27,7 @@ const seededDocuments: DocumentItem[] = [
     id: "doc-1",
     name: "Employment_Contract_2026.pdf",
     status: "Signed",
-    date: "Oct 12, 2023",
+    date: "Oct 12, 2025",
     type: "Contract",
   },
   {
@@ -41,7 +41,7 @@ const seededDocuments: DocumentItem[] = [
     id: "doc-3",
     name: "Annual_Performance_Review_Q4.pdf",
     status: "Completed",
-    date: "Dec 20, 2023",
+    date: "Dec 20, 2025",
     type: "Review",
   },
   {

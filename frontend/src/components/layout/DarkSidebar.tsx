@@ -59,6 +59,7 @@ export function DarkSidebar({
   const [briefText, setBriefText] = useState("");
   const [intakeFile, setIntakeFile] = useState<File | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusIsError, setStatusIsError] = useState(false);
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
@@ -100,6 +101,7 @@ export function DarkSidebar({
 
   const isSubmitting = uploadText.isPending || uploadFile.isPending || processIntake.isPending;
   const isChatBusy = isSubmitting || aiState === "thinking";
+  const showWelcome = chatMessages.length === 0;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -356,9 +358,7 @@ export function DarkSidebar({
     }
   }
 
-  useEffect(() => {
-    handleSendMessageRef.current = handleSendMessage;
-  }, [handleSendMessage]);
+  handleSendMessageRef.current = handleSendMessage;
 
   function handleStartListening() {
     if (!recognitionRef.current) return;
@@ -377,6 +377,7 @@ export function DarkSidebar({
 
   async function handleSubmitIntake() {
     setStatusMessage(null);
+    setStatusIsError(false);
     try {
       let intakeId: string | null = null;
       let uploadLabel: string | null = null;
@@ -404,6 +405,7 @@ export function DarkSidebar({
         uploadLabel = "Uploaded brief text";
       } else {
         setStatusMessage("Add a brief or upload a file to start intake.");
+        setStatusIsError(true);
         return;
       }
 
@@ -445,8 +447,10 @@ export function DarkSidebar({
           queryClient.invalidateQueries({ queryKey: ["client-need", clientNeedId] });
           queryClient.invalidateQueries({ queryKey: ["client-need-matches", clientNeedId] });
           setStatusMessage("Client need created and ready for review.");
+          setStatusIsError(false);
         } else {
           setStatusMessage("Intake processed, but client need ID was not returned.");
+          setStatusIsError(true);
         }
       } catch (agentError) {
         console.error("Agent processing failed after upload.", agentError);
@@ -459,9 +463,11 @@ export function DarkSidebar({
           },
         ]);
         setStatusMessage("Upload succeeded, but agent processing failed.");
+        setStatusIsError(true);
       }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Failed to process intake.");
+      setStatusIsError(true);
     }
   }
 
@@ -508,111 +514,81 @@ export function DarkSidebar({
 
       {/* Welcome Message */}
       <div className="flex-1 min-h-0 flex flex-col gap-6">
-        <div
-          className="flex-1 min-h-0 overflow-y-auto pr-1"
-          role="log"
-          aria-live="polite"
-          aria-relevant="additions"
-        >
-          {!hasConversationStarted && (
-            <div className="space-y-4">
-              <h1 className="text-4xl font-extrabold text-foreground leading-tight">
-                Welcome back, {userName.split(" ")[0]}.
-              </h1>
-              <p className="text-muted-foreground text-lg">
-                {isBusiness
-                  ? "Your AI business agent is ready. How can I help you staff today?"
-                  : "Your AI career assistant is ready. How can I help you grow today?"}
-              </p>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1" role="log" aria-live="polite" aria-relevant="additions">
+          {showWelcome && (
+            <div className="flex flex-col">
+              <div className="space-y-4">
+                <h1 className="text-4xl font-extrabold text-foreground leading-tight">
+                  Welcome back, {userName.split(" ")[0]}.
+                </h1>
+                <p className="text-muted-foreground text-lg">
+                  {isBusiness
+                    ? "Your AI business agent is ready. How can I help you staff today?"
+                    : "Your AI career assistant is ready. How can I help you grow today?"}
+                </p>
+              </div>
+
+              <div className="flex flex-1 items-center justify-center" />
             </div>
           )}
 
-          {!hasConversationStarted && (
-            <>
-              {/* AI Pulse Visualizer */}
-              <div className="h-24 flex items-center justify-center gap-1 mt-6">
-                {[40, 60, 100, 80, 50, 70].map((height, i) => (
-                  <div
-                    key={i}
-                    className={`w-1 rounded-full transition-colors ${
-                      aiState === "listening"
-                        ? "bg-success animate-pulse"
-                        : aiState === "thinking"
-                        ? "bg-warning animate-pulse"
-                        : aiState === "talking"
-                        ? "bg-primary animate-pulse"
-                        : "bg-primary/60"
-                    }`}
-                    style={{
-                      height: `${height}%`,
-                      opacity: height / 100,
-                      animationDelay: `${i * 0.1}s`,
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {aiState === "listening" && "Listening"}
-                {aiState === "thinking" && "Thinking"}
-                {aiState === "talking" && "Talking"}
-                {aiState === "idle" && "Ready"}
-              </div>
-            </>
-          )}
-
           <div className="mt-6">
-            {hasConversationStarted &&
-              chatMessages.map((message, idx) => (
-                <div
-                  key={`${message.role}-${idx}`}
-                  className={`flex my-2 ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-card text-foreground border border-border/70"
-                    }`}
+            {hasConversationStarted && (
+              <ul className="space-y-3">
+                {chatMessages.map((message, idx) => (
+                  <li
+                    key={`${message.role}-${idx}`}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                    aria-label={message.role === "user" ? "User message" : "Agent message"}
                   >
-                    <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">
-                      {message.role === "user" ? "You" : "Agent"}
-                    </span>
-                    <p className="leading-relaxed whitespace-pre-line">{message.content}</p>
-                  </div>
-              </div>
-            ))}
-            {hasConversationStarted && aiState !== "idle" && (
-              <div className="flex justify-start">
-                <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm bg-card text-foreground border border-border/70">
-                  <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">Agent</span>
-                  <div className="flex items-center gap-4">
-                    <div className="h-8 flex items-center gap-1">
-                      {[40, 60, 100, 80, 50].map((height, i) => (
-                        <div
-                          key={i}
-                          className={`w-1 rounded-full transition-colors ${
-                            aiState === "listening"
-                              ? "bg-success animate-pulse"
-                              : aiState === "thinking"
-                              ? "bg-warning animate-pulse"
-                              : "bg-primary animate-pulse"
-                          }`}
-                          style={{
-                            height: `${height}%`,
-                            opacity: height / 100,
-                            animationDelay: `${i * 0.1}s`,
-                          }}
-                        />
-                      ))}
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card text-foreground border border-border/70"
+                      }`}
+                    >
+                      <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">
+                        {message.role === "user" ? "You" : "Agent"}
+                      </span>
+                      <p className="leading-relaxed whitespace-pre-line">{message.content}</p>
                     </div>
-                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      {aiState === "listening" && "Listening"}
-                      {aiState === "thinking" && "Thinking"}
-                      {aiState === "talking" && "Talking"}
-                    </p>
-                  </div>
-                </div>
-              </div>
+                  </li>
+                ))}
+                {hasConversationStarted && aiState !== "idle" && (
+                  <li className="flex justify-start" aria-label="Agent status">
+                    <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm bg-card text-foreground border border-border/70">
+                      <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">Agent</span>
+                      <div className="flex items-center gap-4">
+                        <div className="h-8 flex items-center gap-1">
+                          {[40, 60, 100, 80, 50].map((height, i) => (
+                            <div
+                              key={i}
+                              className={`w-1 rounded-full transition-colors ${
+                                aiState === "listening"
+                                  ? "bg-success animate-pulse"
+                                  : aiState === "thinking"
+                                  ? "bg-warning animate-pulse"
+                                  : "bg-primary animate-pulse"
+                              }`}
+                              style={{
+                                height: `${height}%`,
+                                opacity: height / 100,
+                                animationDelay: `${i * 0.1}s`,
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          {aiState === "listening" && "Listening"}
+                          {aiState === "thinking" && "Thinking"}
+                          {aiState === "talking" && "Talking"}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                )}
+              </ul>
             )}
             <div ref={chatEndRef} />
           </div>
@@ -620,6 +596,12 @@ export function DarkSidebar({
 
         {/* AI Interaction Composer */}
         <div className="bg-card border border-border rounded-xl p-4 shrink-0">
+          <p className="sr-only" role="status" aria-live="polite">
+            {isChatBusy ? "Sending message." : aiState === "listening" ? "Listening." : aiState === "thinking" ? "Thinking." : aiState === "talking" ? "Talking." : "Ready."}
+          </p>
+          <p id="chat-input-hint" className="sr-only">
+            Press Enter to send. Press Shift plus Enter for a new line.
+          </p>
           <Textarea
             className="w-full bg-transparent border-none resize-none h-32 text-base placeholder:text-muted-foreground "
             placeholder={
@@ -628,6 +610,7 @@ export function DarkSidebar({
                 : "Ask AI to analyze your recent project or update your CV..."
             }
             aria-label={isBusiness ? "Business chat input" : "Career chat input"}
+            aria-describedby="chat-input-hint"
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
             onKeyDown={(event) => {
@@ -709,12 +692,16 @@ export function DarkSidebar({
                 value={clientName}
                 onChange={(event) => setClientName(event.target.value)}
                 aria-label="Client name"
+                aria-describedby={statusMessage ? "intake-status" : undefined}
+                aria-invalid={statusIsError}
               />
               <Input
                 placeholder="Client email (optional)"
                 value={clientEmail}
                 onChange={(event) => setClientEmail(event.target.value)}
                 aria-label="Client email"
+                aria-describedby={statusMessage ? "intake-status" : undefined}
+                aria-invalid={statusIsError}
               />
               <Textarea
                 className="min-h-[140px]"
@@ -722,6 +709,8 @@ export function DarkSidebar({
                 value={briefText}
                 onChange={(event) => setBriefText(event.target.value)}
                 aria-label="Project brief"
+                aria-describedby={statusMessage ? "intake-status" : undefined}
+                aria-invalid={statusIsError}
               />
               <Input
                 type="file"
@@ -734,12 +723,23 @@ export function DarkSidebar({
                   }
                 }}
                 aria-label="Upload brief file"
+                aria-describedby={statusMessage ? "intake-status" : undefined}
+                aria-invalid={statusIsError}
               />
               {intakeFile && (
                 <p className="text-xs text-muted-foreground">Selected file: {intakeFile.name}</p>
               )}
             </div>
-            {statusMessage && <p className="text-xs text-muted-foreground">{statusMessage}</p>}
+            {statusMessage && (
+              <p
+                id="intake-status"
+                className="text-xs text-muted-foreground"
+                role={statusIsError ? "alert" : "status"}
+                aria-live={statusIsError ? "assertive" : "polite"}
+              >
+                {statusMessage}
+              </p>
+            )}
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setIntakeOpen(false)}>
                 Cancel

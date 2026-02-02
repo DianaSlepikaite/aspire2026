@@ -15,6 +15,7 @@ import { useEmployeeContext } from "@/context/EmployeeContext";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -227,6 +228,9 @@ export default function Profile() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{selectedDoc?.file_name ?? "Document Preview"}</DialogTitle>
+            <DialogDescription>
+              Preview the document contents. Press Escape to close.
+            </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground max-h-[70vh] overflow-auto whitespace-pre-wrap">
             {previewText

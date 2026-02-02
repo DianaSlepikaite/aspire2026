@@ -60,7 +60,7 @@ export const mandatoryTrainings = [
   {
     title: "Inclusive Leadership",
     status: "Completed",
-    due: "Dec 01, 2023",
+    due: "Dec 01, 2025",
     requiredBy: "People Ops",
   },
 ];
