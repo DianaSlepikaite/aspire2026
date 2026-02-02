@@ -60,6 +60,9 @@ export default function BusinessStaffing({
           min_match_score: 60,
         }),
       enabled: Boolean(need.id),
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
     })),
   });
 

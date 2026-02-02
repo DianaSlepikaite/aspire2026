@@ -23,6 +23,9 @@ export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRoles
         min_match_score: 0,
       }),
     enabled: Boolean(clientNeedId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // API data is source of truth; agentRuns supplements fields the backend doesn't store

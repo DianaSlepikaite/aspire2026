@@ -33,6 +33,9 @@ export default function Matches() {
         }
       },
       enabled: Boolean(employeeProfileId && need.id),
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
     })),
   });
 
