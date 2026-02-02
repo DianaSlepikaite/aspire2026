@@ -1,43 +1,50 @@
 # Frontend
 
-
-Follow these steps:
+## Quick start
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app runs on the Vite default port (typically `http://localhost:8080`).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Common scripts
 
-**Use GitHub Codespaces**
+```sh
+npm run dev       # start dev server
+npm run build     # production build
+npm run preview   # preview production build
+npm run lint      # lint (if configured)
+npm run test      # vitest in watch mode
+npm run test -- --run   # run tests once
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Project structure
 
-## What technologies are used for this project?
+- `src/components/layout/` — main layout sections (Business/Career pages)
+- `src/components/layout/darkSidebar/` — chat sidebar UI
+- `src/components/layout/core/` — Core profile sections and fields
+- `src/components/cards/` — reusable card components
+- `src/hooks/` — data hooks and UI logic
+- `src/lib/` — API clients and helpers
 
-This project is built with:
+## Environment
+
+The frontend expects API base URLs via `.env` (see `frontend/.env` and `frontend/.env.example`).
+
+## Testing
+
+This repo uses **Vitest** + **React Testing Library**.
+
+```sh
+npm run test -- --run
+```
+
+## Tech stack
 
 - Vite
 - TypeScript
 - React
-- shadcn-ui
 - Tailwind CSS
-
+- shadcn-ui
