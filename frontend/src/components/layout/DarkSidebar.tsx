@@ -641,6 +641,7 @@ export function DarkSidebar({
                   type="file"
                   multiple
                   className="hidden"
+                  aria-label="Upload document"
                   onChange={(event) => {
                     handleCareerFileUpload(event.target.files);
                     event.currentTarget.value = "";

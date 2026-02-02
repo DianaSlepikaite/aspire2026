@@ -56,7 +56,7 @@ export default function Profile() {
       <section>
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold">Your Overview</h3>
-          <Button variant="link" className="text-primary font-semibold">
+          <Button variant="link" className="text-foreground hover:text-primary font-semibold">
             Edit Profile
           </Button>
         </div>
@@ -77,7 +77,7 @@ export default function Profile() {
       <section>
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold">Recommended Learning</h3>
-          <Button variant="link" className="text-primary font-semibold">
+          <Button variant="link" className="text-foreground hover:text-primary font-semibold">
             Explore Catalog
           </Button>
         </div>
@@ -98,6 +98,7 @@ export default function Profile() {
               type="file"
               multiple
               className="hidden"
+              aria-label="Upload document"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
@@ -122,7 +123,7 @@ export default function Profile() {
             />
             <Button
               variant="link"
-              className="text-primary font-semibold flex items-center gap-1"
+              className="text-foreground hover:text-primary font-semibold flex items-center gap-1"
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="size-4" />

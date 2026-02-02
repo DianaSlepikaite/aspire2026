@@ -1111,6 +1111,7 @@ export default function Core() {
               type="file"
               multiple
               className="hidden"
+              aria-label="Upload document"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;

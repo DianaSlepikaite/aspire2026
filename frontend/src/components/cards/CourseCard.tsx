@@ -25,7 +25,7 @@ export function CourseCard({
         style={{ backgroundImage: `url('${image}')` }}
       />
       <div className="p-6">
-        <span className="text-primary font-bold text-[10px] uppercase tracking-wider">
+        <span className="text-foreground font-bold text-[10px] uppercase tracking-wider">
           {category}
         </span>
         <h5 className="font-bold text-lg mt-1 group-hover:text-primary transition-colors">
@@ -38,7 +38,10 @@ export function CourseCard({
               <Progress value={progress} className="flex-1 h-1.5" />
               <span className="text-xs font-semibold text-muted-foreground">{progress}%</span>
             </div>
-            <Button variant="outline" className="w-full mt-6 font-bold border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+            <Button
+              variant="outline"
+              className="w-full mt-6 font-bold border-2 border-primary/60 text-foreground hover:bg-primary hover:text-primary-foreground"
+            >
               Resume Learning
             </Button>
           </>

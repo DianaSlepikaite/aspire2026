@@ -48,7 +48,7 @@ export default function Onboarding() {
         <div className="w-full max-w-xl mb-12">
           <div className="flex justify-between items-end mb-3">
             <div>
-              <p className="text-primary text-xs font-bold uppercase tracking-widest mb-1">Getting Started</p>
+              <p className="text-foreground text-xs font-bold uppercase tracking-widest mb-1">Getting Started</p>
               <p className="text-xl font-bold">Onboarding Progress</p>
             </div>
             <p className="text-sm font-medium text-muted-foreground">Step 1 of 4 (25%)</p>

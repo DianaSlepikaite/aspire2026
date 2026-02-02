@@ -83,7 +83,10 @@ export function RoleCard({
             )}
           </div>
         </div>
-        <button className="text-muted-foreground group-hover:text-primary transition-colors">
+        <button
+          className="text-muted-foreground group-hover:text-primary transition-colors"
+          aria-label={`View role details for ${title}`}
+        >
           <ChevronRight className="size-5" />
         </button>
       </div>
