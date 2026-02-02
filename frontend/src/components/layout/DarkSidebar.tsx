@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, FileUp, PlusCircle } from "lucide-react";
-import { TalentMatchMark } from "@/components/brand/TalentMatchMark";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useProcessIntake, useUploadIntakeFile, useUploadIntakeText } from "@/hooks/useClientNeeds";
 import {
@@ -13,8 +9,6 @@ import {
   extractClientNeedId,
   extractCompletenessScore,
   getClarifyingQuestions,
-  sendConversationMessage,
-  startConversation,
   updateClientNeedFromMessage,
 } from "@/lib/clientNeedApi";
 import {
@@ -25,13 +19,11 @@ import {
 } from "@/lib/employeeApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEmployeeContext } from "@/context/EmployeeContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { SidebarHeader } from "@/components/layout/darkSidebar/SidebarHeader";
+import { ChatThread } from "@/components/layout/darkSidebar/ChatThread";
+import { ChatComposer } from "@/components/layout/darkSidebar/ChatComposer";
+import { IntakeDialog } from "@/components/layout/darkSidebar/IntakeDialog";
+import { SidebarProfile } from "@/components/layout/darkSidebar/SidebarProfile";
 
 interface DarkSidebarProps {
   userName?: string;
@@ -512,282 +504,60 @@ export function DarkSidebar({
   }
   return (
     <aside className="w-1/2 min-w-[400px] h-full bg-background flex flex-col border-r border-border p-8">
-      {/* Logo */}
-      <div className="flex items-center gap-3 mb-12">
-        <div className="size-8 bg-primary rounded-lg flex items-center justify-center">
-          <TalentMatchMark className="size-5 text-primary-foreground" />
-        </div>
-        <h2 className="text-foreground text-xl font-bold tracking-tight">TalentMatch</h2>
-        <span className="bg-success/10 text-success text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-          {isBusiness ? "Business" : "Career"}
-        </span>
-      </div>
+      <SidebarHeader isBusiness={isBusiness} />
 
-      {/* Welcome Message */}
       <div className="flex-1 min-h-0 flex flex-col gap-6">
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1" role="log" aria-live="polite" aria-relevant="additions">
-          {showWelcome && (
-            <div className="flex flex-col">
-              <div className="space-y-4">
-                <h1 className="text-4xl font-extrabold text-foreground leading-tight">
-                  Welcome back, {userName.split(" ")[0]}.
-                </h1>
-                <p className="text-muted-foreground text-lg">
-                  {isBusiness
-                    ? "Your AI business agent is ready. How can I help you staff today?"
-                    : "Your AI career assistant is ready. How can I help you grow today?"}
-                </p>
-              </div>
+        <ChatThread
+          showWelcome={showWelcome}
+          userName={userName}
+          isBusiness={isBusiness}
+          messages={chatMessages}
+          aiState={aiState}
+          hasConversationStarted={hasConversationStarted}
+          chatEndRef={chatEndRef}
+        />
 
-              <div className="flex flex-1 items-center justify-center" />
-            </div>
-          )}
-
-          <div className="mt-6">
-            {hasConversationStarted && (
-              <ul className="space-y-3">
-                {chatMessages.map((message, idx) => (
-                  <li
-                    key={`${message.role}-${idx}`}
-                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                    aria-label={message.role === "user" ? "User message" : "Agent message"}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                        message.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-card text-foreground border border-border/70"
-                      }`}
-                    >
-                      <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">
-                        {message.role === "user" ? "You" : "Agent"}
-                      </span>
-                      <p className="leading-relaxed whitespace-pre-line">{message.content}</p>
-                    </div>
-                  </li>
-                ))}
-                {hasConversationStarted && aiState !== "idle" && (
-                  <li className="flex justify-start" aria-label="Agent status">
-                    <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm bg-card text-foreground border border-border/70">
-                      <span className="block text-[10px] uppercase tracking-wider opacity-70 mb-2">Agent</span>
-                      <div className="flex items-center gap-4">
-                        <div className="h-8 flex items-center gap-1">
-                          {[40, 60, 100, 80, 50].map((height, i) => (
-                            <div
-                              key={i}
-                              className={`w-1 rounded-full transition-colors ${
-                                aiState === "listening"
-                                  ? "bg-success animate-pulse"
-                                  : aiState === "thinking"
-                                  ? "bg-warning animate-pulse"
-                                  : "bg-primary animate-pulse"
-                              }`}
-                              style={{
-                                height: `${height}%`,
-                                opacity: height / 100,
-                                animationDelay: `${i * 0.1}s`,
-                              }}
-                            />
-                          ))}
-                        </div>
-                        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                          {aiState === "listening" && "Listening"}
-                          {aiState === "thinking" && "Thinking"}
-                          {aiState === "talking" && "Talking"}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                )}
-              </ul>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-        </div>
-
-        {/* AI Interaction Composer */}
-        <div className="bg-card border border-border rounded-xl p-4 shrink-0">
-          <p className="sr-only" role="status" aria-live="polite">
-            {isChatBusy ? "Sending message." : aiState === "listening" ? "Listening." : aiState === "thinking" ? "Thinking." : aiState === "talking" ? "Talking." : "Ready."}
-          </p>
-          <p id="chat-input-hint" className="sr-only">
-            Press Enter to send. Press Shift plus Enter for a new line.
-          </p>
-          <Textarea
-            className="w-full bg-transparent border-none resize-none h-32 text-base placeholder:text-muted-foreground "
-            placeholder={
-              isBusiness
-                ? "Ask AI to analyze staffing gaps, prioritize roles, or draft a project request..."
-                : "Ask AI to analyze your recent project or update your CV..."
-            }
-            aria-label={isBusiness ? "Business chat input" : "Career chat input"}
-            aria-describedby="chat-input-hint"
-            value={chatInput}
-            onChange={(event) => setChatInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                if (!isChatBusy) {
-                  void handleSendMessage();
-                }
-              }
-            }}
-          />
-          <div className="flex items-center justify-between pt-2 border-t border-border mt-4">
-            <div className="flex items-center gap-2">
-              {!isBusiness && (
-                <input
-                  ref={careerFileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  aria-label="Upload document"
-                  onChange={(event) => {
-                    handleCareerFileUpload(event.target.files);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={aiState === "listening" ? handleStopListening : handleStartListening}
-                disabled={!recognitionRef.current}
-                aria-label={aiState === "listening" ? "Stop voice input" : "Start voice input"}
-                aria-pressed={aiState === "listening"}
-              >
-                <Mic className="size-5" />
-              </Button>
-              {isBusiness ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setIntakeOpen(true)}
-                  aria-label="Upload client brief"
-                >
-                  <FileUp className="size-5" />
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => careerFileInputRef.current?.click()}
-                  aria-label="Upload document"
-                >
-                  <FileUp className="size-5" />
-                </Button>
-              )}
-            </div>
-            <Button className="font-semibold" onClick={() => handleSendMessage()} disabled={isChatBusy}>
-              {isChatBusy ? "Sending..." : "Send Command"}
-            </Button>
-          </div>
-        </div>
-        
+        <ChatComposer
+          isBusiness={isBusiness}
+          chatInput={chatInput}
+          onChatInputChange={setChatInput}
+          onSend={() => void handleSendMessage()}
+          isChatBusy={isChatBusy}
+          aiState={aiState}
+          recognitionAvailable={Boolean(recognitionRef.current)}
+          onStartListening={handleStartListening}
+          onStopListening={handleStopListening}
+          onOpenIntake={() => setIntakeOpen(true)}
+          careerFileInputRef={careerFileInputRef}
+          onCareerFileChange={handleCareerFileUpload}
+        />
       </div>
 
       {isBusiness && (
-        <Dialog open={intakeOpen} onOpenChange={setIntakeOpen}>
-          <DialogContent className="max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Client Need Intake</DialogTitle>
-              <DialogDescription>
-                Upload a brief or paste requirements to create a client need.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-1 gap-3">
-              <Input
-                placeholder="Client name (optional)"
-                value={clientName}
-                onChange={(event) => setClientName(event.target.value)}
-                aria-label="Client name"
-                aria-describedby={statusMessage ? "intake-status" : undefined}
-                aria-invalid={statusIsError}
-              />
-              <Input
-                placeholder="Client email (optional)"
-                value={clientEmail}
-                onChange={(event) => setClientEmail(event.target.value)}
-                aria-label="Client email"
-                aria-describedby={statusMessage ? "intake-status" : undefined}
-                aria-invalid={statusIsError}
-              />
-              <Textarea
-                className="min-h-[140px]"
-                placeholder="Paste the project brief or key requirements..."
-                value={briefText}
-                onChange={(event) => setBriefText(event.target.value)}
-                aria-label="Project brief"
-                aria-describedby={statusMessage ? "intake-status" : undefined}
-                aria-invalid={statusIsError}
-              />
-              <Input
-                type="file"
-                accept=".pdf,.wav,.mp3,.ogg,.m4a"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] || null;
-                  setIntakeFile(file);
-                }}
-                aria-label="Upload brief file"
-                aria-describedby={statusMessage ? "intake-status" : undefined}
-                aria-invalid={statusIsError}
-              />
-              {intakeFile && (
-                <p className="text-xs text-muted-foreground">Selected file: {intakeFile.name}</p>
-              )}
-            </div>
-            {statusMessage && (
-              <p
-                id="intake-status"
-                className="text-xs text-muted-foreground"
-                role={statusIsError ? "alert" : "status"}
-                aria-live={statusIsError ? "assertive" : "polite"}
-              >
-                {statusMessage}
-              </p>
-            )}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setIntakeOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSubmitIntake} disabled={isSubmitting}>
-                {isSubmitting ? "Processing Intake..." : "Process Client Need"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-      
-
-      {/* User Profile */}
-      <div className="mt-auto pt-8 flex items-center gap-4 border-t border-border">
-        <div
-          className="size-10 rounded-full bg-cover bg-center border border-border"
-          style={{ backgroundImage: `url('${userImage}')` }}
-          role="img"
-          aria-label={`${userName} avatar`}
+        <IntakeDialog
+          open={intakeOpen}
+          onOpenChange={setIntakeOpen}
+          clientName={clientName}
+          clientEmail={clientEmail}
+          briefText={briefText}
+          intakeFile={intakeFile}
+          statusMessage={statusMessage}
+          statusIsError={statusIsError}
+          isSubmitting={isSubmitting}
+          onClientNameChange={setClientName}
+          onClientEmailChange={setClientEmail}
+          onBriefTextChange={setBriefText}
+          onFileChange={setIntakeFile}
+          onSubmit={handleSubmitIntake}
         />
-        <div className="flex-1 min-w-0">
-          <p className="text-foreground text-sm font-semibold truncate">{userName}</p>
-          <p className="text-muted-foreground text-xs truncate">{userRole}</p>
-        </div>
-        <Button
-          onClick={() => navigate("/", { replace: true })}
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground"
-          aria-label="Return to portal selection"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-5">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" x2="9" y1="12" y2="12" />
-          </svg>
-        </Button>
-      </div>
+      )}
+
+      <SidebarProfile
+        userName={userName}
+        userRole={userRole}
+        userImage={userImage}
+        onExit={() => navigate("/", { replace: true })}
+      />
     </aside>
   );
 }
