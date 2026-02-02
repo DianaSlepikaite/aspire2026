@@ -228,10 +228,10 @@ export default function Roles() {
 
           {/* Footer Summary */}
           <div className="mt-12 flex items-center justify-between text-muted-foreground text-sm border-t border-border pt-6">
-            <p>© 2024 Talent Orchestrator Platform. All rights reserved.</p>
+            <p>© 2026 Talent Orchestrator Platform. All rights reserved.</p>
             <div className="flex gap-6">
-              <a href="#" className="hover:text-foreground transition-colors">Documentation</a>
-              <a href="#" className="hover:text-foreground transition-colors">Support</a>
+              <button type="button" className="hover:text-foreground transition-colors">Documentation</button>
+              <button type="button" className="hover:text-foreground transition-colors">Support</button>
             </div>
           </div>
         </div>

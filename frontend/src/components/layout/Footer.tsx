@@ -10,12 +10,12 @@ export function Footer({ variant = "default" }: FooterProps) {
       <footer className="mt-auto py-8 px-6 border-t border-border bg-secondary/50">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-6 text-muted-foreground text-xs">
-            <a href="#" className="hover:underline">Privacy Policy</a>
-            <a href="#" className="hover:underline">Terms of Service</a>
-            <a href="#" className="hover:underline">Help Center</a>
+            <button type="button" className="hover:underline">Privacy Policy</button>
+            <button type="button" className="hover:underline">Terms of Service</button>
+            <button type="button" className="hover:underline">Help Center</button>
           </div>
           <div className="text-xs text-muted-foreground/60">
-            © 2024 TalentMatch Platform. All rights reserved.
+            © 2026 TalentMatch Platform. All rights reserved.
           </div>
         </div>
       </footer>
@@ -33,9 +33,9 @@ export function Footer({ variant = "default" }: FooterProps) {
           <span>Last updated: 5 mins ago</span>
         </div>
         <div className="flex items-center gap-6">
-          <a href="#" className="hover:text-primary transition-colors">Platform Status</a>
-          <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
-          <a href="#" className="hover:text-primary transition-colors">Feedback</a>
+          <button type="button" className="hover:text-primary transition-colors">Platform Status</button>
+          <button type="button" className="hover:text-primary transition-colors">Privacy Policy</button>
+          <button type="button" className="hover:text-primary transition-colors">Feedback</button>
         </div>
       </div>
     </footer>

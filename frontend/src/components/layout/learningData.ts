@@ -24,21 +24,21 @@ export const inProgressLearning = [
   {
     title: "Advanced Scrum Master",
     provider: "Udemy",
-    due: "Feb 28, 2024",
+    due: "Feb 28, 2025",
     progress: 45,
     hoursRemaining: 3.5,
   },
   {
     title: "Executive Reporting Essentials",
     provider: "Code Academy",
-    due: "Mar 12, 2024",
+    due: "Mar 12, 2025",
     progress: 68,
     hoursRemaining: 1.25,
   },
   {
     title: "Risk Mitigation Playbooks",
     provider: "Udemy",
-    due: "Mar 25, 2024",
+    due: "Mar 25, 2025",
     progress: 20,
     hoursRemaining: 5,
   },
@@ -48,13 +48,13 @@ export const mandatoryTrainings = [
   {
     title: "Annual Compliance & Ethics",
     status: "Overdue",
-    due: "Jan 15, 2024",
+    due: "Jan 15, 2026",
     requiredBy: "HR Compliance",
   },
   {
     title: "Information Security Refresher",
     status: "Due Soon",
-    due: "Feb 10, 2024",
+    due: "Feb 10, 2025",
     requiredBy: "Security Office",
   },
   {

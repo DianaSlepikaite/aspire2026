@@ -92,7 +92,7 @@ export default function BusinessPortal() {
 
         <main className="flex-1 h-full bg-background overflow-y-auto">
           <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md px-10 py-6 border-b border-border flex justify-between items-center">
-            <nav className="flex gap-8" role="tablist" aria-label="Business sections">
+            <div className="flex gap-8" role="tablist" aria-label="Business sections">
               <button
                 type="button"
                 role="tab"
@@ -132,7 +132,7 @@ export default function BusinessPortal() {
               >
                 Reports
               </button>
-            </nav>
+            </div>
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"

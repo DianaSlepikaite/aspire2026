@@ -8,6 +8,8 @@ import { useNavigate } from "react-router-dom";
 import { useProcessIntake, useUploadIntakeFile, useUploadIntakeText } from "@/hooks/useClientNeeds";
 import {
   AgentResponse,
+  type ClientNeed,
+  type ClientNeedListResponse,
   extractClientNeedId,
   extractCompletenessScore,
   getClarifyingQuestions,
@@ -69,7 +71,24 @@ export function DarkSidebar({
     setEmployeeProfileId,
     setConversationId: setEmployeeConversationId,
   } = useEmployeeContext();
-  const recognitionRef = useRef<any>(null);
+  type SpeechRecognitionResultLike = { transcript: string };
+  type SpeechRecognitionEventLike = { results?: ArrayLike<ArrayLike<SpeechRecognitionResultLike>> };
+  type SpeechRecognitionLike = {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onstart?: () => void;
+    onend?: () => void;
+    onerror?: () => void;
+    onresult?: (event: SpeechRecognitionEventLike) => void;
+    start: () => void;
+    stop: () => void;
+  };
+
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const handleSendMessageRef = useRef<
+    ((messageOverride?: string, messageType?: "text" | "speech") => void) | null
+  >(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const careerFileInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -84,7 +103,12 @@ export function DarkSidebar({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const SpeechRecognitionImpl = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognitionImpl =
+      (window as Window & {
+        SpeechRecognition?: new () => SpeechRecognitionLike;
+        webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+      }).SpeechRecognition
+      ?? (window as Window & { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
     if (!SpeechRecognitionImpl) return;
 
     const recognition = new SpeechRecognitionImpl();
@@ -95,11 +119,11 @@ export function DarkSidebar({
     recognition.onstart = () => setAiState("listening");
     recognition.onend = () => setAiState("idle");
     recognition.onerror = () => setAiState("idle");
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript || "";
       if (transcript) {
         setChatInput(transcript);
-        void handleSendMessage(transcript, "speech");
+        handleSendMessageRef.current?.(transcript, "speech");
       }
     };
 
@@ -227,20 +251,20 @@ export function DarkSidebar({
           context: message,
         });
 
-        const normalizedClientNeed = {
+        const normalizedClientNeed: ClientNeed = {
           ...updateResponse.client_need,
           profile_completeness_score:
             updateResponse.client_need.profile_completeness_score ?? updateResponse.profile_completeness,
         };
 
         queryClient.setQueryData(["client-need", currentClientNeedId], normalizedClientNeed);
-        queryClient.setQueriesData(
+        queryClient.setQueriesData<ClientNeedListResponse>(
           { queryKey: ["client-needs"], exact: false },
-          (old: any) => {
+          (old) => {
             if (!old?.items) return old;
             return {
               ...old,
-              items: old.items.map((item: any) =>
+              items: old.items.map((item) =>
                 item.id === updateResponse.client_need.id ? normalizedClientNeed : item
               ),
             };
@@ -331,6 +355,10 @@ export function DarkSidebar({
       setAiState("idle");
     }
   }
+
+  useEffect(() => {
+    handleSendMessageRef.current = handleSendMessage;
+  }, [handleSendMessage]);
 
   function handleStartListening() {
     if (!recognitionRef.current) return;

@@ -177,11 +177,14 @@ export default function Core() {
       : [];
     setCertificationsDraft(nextCerts);
     const nextEdu = Array.isArray(displayProfile.education)
-      ? displayProfile.education.map((item) => ({
-          school: String((item as any)?.school ?? ""),
-          degree: String((item as any)?.degree ?? ""),
-          year: String((item as any)?.year ?? ""),
-        }))
+      ? displayProfile.education.map((item) => {
+          const record = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+          return {
+            school: String(record.school ?? ""),
+            degree: String(record.degree ?? ""),
+            year: String(record.year ?? ""),
+          };
+        })
       : [];
     setEducationDraft(nextEdu);
     const nextExperience = Array.isArray(displayProfile.experience)
@@ -345,29 +348,37 @@ export default function Core() {
     onChange: (value: string) => void;
     className?: string;
     displayClassName?: string;
+    inputId?: string;
+    labelId?: string;
+    ariaLabel?: string;
   }) {
-    const { field, value, placeholder, onChange, className, displayClassName } = opts;
+    const { field, value, placeholder, onChange, className, displayClassName, inputId, labelId, ariaLabel } = opts;
     if (editingField === field) {
       return (
         <Input
+          id={inputId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onBlur={() => setEditingField(null)}
-          autoFocus
           className={className}
+          aria-labelledby={labelId}
+          aria-label={ariaLabel}
         />
       );
     }
     return (
-      <div
-        className={`min-h-[40px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate ${
+      <button
+        type="button"
+        className={`min-h-[40px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate ${
           displayClassName ?? ""
         }`}
         onClick={() => setEditingField(field)}
         title={value}
+        aria-labelledby={labelId}
+        aria-label={ariaLabel}
       >
         {value || <span className="text-muted-foreground">{placeholder ?? "Click to edit"}</span>}
-      </div>
+      </button>
     );
   }
 
@@ -378,29 +389,37 @@ export default function Core() {
     onChange: (value: string) => void;
     className?: string;
     displayClassName?: string;
+    inputId?: string;
+    labelId?: string;
+    ariaLabel?: string;
   }) {
-    const { field, value, placeholder, onChange, className, displayClassName } = opts;
+    const { field, value, placeholder, onChange, className, displayClassName, inputId, labelId, ariaLabel } = opts;
     if (editingField === field) {
       return (
         <Textarea
+          id={inputId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onBlur={() => setEditingField(null)}
-          autoFocus
           className={className}
+          aria-labelledby={labelId}
+          aria-label={ariaLabel}
         />
       );
     }
     return (
-      <div
-        className={`min-h-[120px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors whitespace-pre-wrap ${
+      <button
+        type="button"
+        className={`min-h-[120px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap ${
           displayClassName ?? ""
         }`}
         onClick={() => setEditingField(field)}
         title={value}
+        aria-labelledby={labelId}
+        aria-label={ariaLabel}
       >
         {value || <span className="text-muted-foreground">{placeholder ?? "Click to edit"}</span>}
-      </div>
+      </button>
     );
   }
 
@@ -467,81 +486,117 @@ export default function Core() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Full Name</label>
+              <label
+                htmlFor="core-full-name"
+                id="core-full-name-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Full Name
+              </label>
                 {renderEditableText({
                   field: "full_name",
                   value: fullNameDraft,
                   placeholder: "Full name",
                   onChange: setFullNameDraft,
                   displayClassName: "max-w-full",
+                  inputId: "core-full-name",
+                  labelId: "core-full-name-label",
+                  ariaLabel: "Full name",
                 })}
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Location</label>
+              <label
+                htmlFor="core-location"
+                id="core-location-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Location
+              </label>
               <div className="relative">
                 <MapPin className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 {editingField === "location" ? (
                   <Input
+                    id="core-location"
                     className="pl-9"
                     value={locationDraft}
                     onChange={(event) => setLocationDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
-                    autoFocus
+                    aria-labelledby="core-location-label"
                   />
                 ) : (
-                  <div
-                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                  <button
+                    type="button"
+                    className="min-h-[40px] w-full rounded-md border border-border pl-9 pr-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate"
                     onClick={() => setEditingField("location")}
                     title={locationDraft}
+                    aria-labelledby="core-location-label"
                   >
                     {locationDraft || <span className="text-muted-foreground">Location</span>}
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Email</label>
+              <label
+                htmlFor="core-email"
+                id="core-email-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Email
+              </label>
               <div className="relative">
                 <Mail className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 {editingField === "email" ? (
                   <Input
+                    id="core-email"
                     className="pl-9"
                     value={emailDraft}
                     onChange={(event) => setEmailDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
-                    autoFocus
+                    aria-labelledby="core-email-label"
                   />
                 ) : (
-                  <div
-                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                  <button
+                    type="button"
+                    className="min-h-[40px] w-full rounded-md border border-border pl-9 pr-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate"
                     onClick={() => setEditingField("email")}
                     title={emailDraft}
+                    aria-labelledby="core-email-label"
                   >
                     {emailDraft || <span className="text-muted-foreground">Email</span>}
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Phone</label>
+              <label
+                htmlFor="core-phone"
+                id="core-phone-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Phone
+              </label>
               <div className="relative">
                 <Phone className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 {editingField === "phone" ? (
                   <Input
+                    id="core-phone"
                     className="pl-9"
                     value={phoneDraft}
                     onChange={(event) => setPhoneDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
-                    autoFocus
+                    aria-labelledby="core-phone-label"
                   />
                 ) : (
-                  <div
-                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                  <button
+                    type="button"
+                    className="min-h-[40px] w-full rounded-md border border-border pl-9 pr-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate"
                     onClick={() => setEditingField("phone")}
                     title={phoneDraft}
+                    aria-labelledby="core-phone-label"
                   >
                     {phoneDraft || <span className="text-muted-foreground">Phone</span>}
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
@@ -555,90 +610,135 @@ export default function Core() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Title</label>
+              <label
+                htmlFor="core-title"
+                id="core-title-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Title
+              </label>
               <div className="relative">
                 <Briefcase className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 {editingField === "title" ? (
                   <Input
+                    id="core-title"
                     className="pl-9"
                     value={titleDraft}
                     onChange={(event) => setTitleDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
-                    autoFocus
+                    aria-labelledby="core-title-label"
                   />
                 ) : (
-                  <div
-                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                  <button
+                    type="button"
+                    className="min-h-[40px] w-full rounded-md border border-border pl-9 pr-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate"
                     onClick={() => setEditingField("title")}
                     title={titleDraft}
+                    aria-labelledby="core-title-label"
                   >
                     {titleDraft || <span className="text-muted-foreground">Title</span>}
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Department</label>
+              <label
+                htmlFor="core-department"
+                id="core-department-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Department
+              </label>
               <div className="relative">
                 <Building2 className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 {editingField === "department" ? (
                   <Input
+                    id="core-department"
                     className="pl-9"
                     value={departmentDraft}
                     onChange={(event) => setDepartmentDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
-                    autoFocus
+                    aria-labelledby="core-department-label"
                   />
                 ) : (
-                  <div
-                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                  <button
+                    type="button"
+                    className="min-h-[40px] w-full rounded-md border border-border pl-9 pr-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate"
                     onClick={() => setEditingField("department")}
                     title={departmentDraft}
+                    aria-labelledby="core-department-label"
                   >
                     {departmentDraft || <span className="text-muted-foreground">Department</span>}
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Manager</label>
+              <label
+                htmlFor="core-manager"
+                id="core-manager-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Manager
+              </label>
             {renderEditableText({
               field: "manager",
               value: managerDraft,
               placeholder: "Manager",
               onChange: setManagerDraft,
+              inputId: "core-manager",
+              labelId: "core-manager-label",
+              ariaLabel: "Manager",
             })}
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Start Date</label>
+              <label
+                htmlFor="core-start-date"
+                id="core-start-date-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Start Date
+              </label>
               <div className="relative">
                 <Calendar className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 {editingField === "startDate" ? (
                   <Input
+                    id="core-start-date"
                     className="pl-9"
                     value={startDateDraft}
                     onChange={(event) => setStartDateDraft(event.target.value)}
                     onBlur={() => setEditingField(null)}
-                    autoFocus
+                    aria-labelledby="core-start-date-label"
                   />
                 ) : (
-                  <div
-                    className="min-h-[40px] rounded-md border border-border pl-9 pr-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors truncate"
+                  <button
+                    type="button"
+                    className="min-h-[40px] w-full rounded-md border border-border pl-9 pr-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors truncate"
                     onClick={() => setEditingField("startDate")}
                     title={startDateDraft}
+                    aria-labelledby="core-start-date-label"
                   >
                     {startDateDraft || <span className="text-muted-foreground">Start date</span>}
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
             <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Employment Type</label>
+              <label
+                htmlFor="core-employment-type"
+                id="core-employment-type-label"
+                className="text-xs font-semibold text-muted-foreground uppercase"
+              >
+                Employment Type
+              </label>
               {renderEditableText({
                 field: "employmentType",
                 value: employmentTypeDraft,
                 placeholder: "Employment type",
                 onChange: setEmploymentTypeDraft,
+                inputId: "core-employment-type",
+                labelId: "core-employment-type-label",
+                ariaLabel: "Employment type",
               })}
             </div>
           </div>
@@ -652,34 +752,61 @@ export default function Core() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase">Professional Summary</label>
+            <label
+              htmlFor="core-summary"
+              id="core-summary-label"
+              className="text-xs font-semibold text-muted-foreground uppercase"
+            >
+              Professional Summary
+            </label>
             {renderEditableTextarea({
               field: "summary",
               value: summaryDraft,
               placeholder: "Professional summary",
               onChange: setSummaryDraft,
               className: "min-h-[120px]",
+              inputId: "core-summary",
+              labelId: "core-summary-label",
+              ariaLabel: "Professional summary",
             })}
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase">Career Goals</label>
+            <label
+              htmlFor="core-goals"
+              id="core-goals-label"
+              className="text-xs font-semibold text-muted-foreground uppercase"
+            >
+              Career Goals
+            </label>
             {renderEditableTextarea({
               field: "goals",
               value: goalsDraft,
               placeholder: "Career goals",
               onChange: setGoalsDraft,
               className: "min-h-[120px]",
+              inputId: "core-goals",
+              labelId: "core-goals-label",
+              ariaLabel: "Career goals",
             })}
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-muted-foreground uppercase">Core Strengths</label>
+          <label
+            htmlFor="core-strengths"
+            id="core-strengths-label"
+            className="text-xs font-semibold text-muted-foreground uppercase"
+          >
+            Core Strengths
+          </label>
           {renderEditableTextarea({
             field: "strengths",
             value: strengthsDraft,
             placeholder: "Core strengths",
             onChange: setStrengthsDraft,
             className: "min-h-[90px]",
+            inputId: "core-strengths",
+            labelId: "core-strengths-label",
+            ariaLabel: "Core strengths",
           })}
         </div>
       </div>
@@ -691,7 +818,13 @@ export default function Core() {
             <Badge variant="secondary">Editable</Badge>
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase">Top Skills</label>
+            <label
+              htmlFor="core-skill-input"
+              id="core-skill-input-label"
+              className="text-xs font-semibold text-muted-foreground uppercase"
+            >
+              Top Skills
+            </label>
             <div className="flex flex-wrap gap-2 mt-2">
               {skillsDraft.map((skill) => (
                 <Badge key={skill} variant="outline" className="flex items-center gap-1">
@@ -709,9 +842,11 @@ export default function Core() {
             </div>
             <div className="flex items-center gap-2 mt-3">
               <Input
+                id="core-skill-input"
                 value={skillInput}
                 onChange={(event) => setSkillInput(event.target.value)}
                 placeholder="Add a skill"
+                aria-labelledby="core-skill-input-label"
               />
               <Button variant="outline" size="sm" className="font-semibold" onClick={addSkill}>
                 <Plus className="size-3 mr-2" />
@@ -720,7 +855,13 @@ export default function Core() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase">Certifications</label>
+            <label
+              htmlFor="core-cert-input"
+              id="core-cert-input-label"
+              className="text-xs font-semibold text-muted-foreground uppercase"
+            >
+              Certifications
+            </label>
             <div className="flex flex-wrap gap-2 mt-2">
               {certificationsDraft.map((cert) => (
                 <Badge key={cert} variant="secondary" className="flex items-center gap-1">
@@ -738,9 +879,11 @@ export default function Core() {
             </div>
             <div className="flex items-center gap-2 mt-3">
               <Input
+                id="core-cert-input"
                 value={certInput}
                 onChange={(event) => setCertInput(event.target.value)}
                 placeholder="Add a certification"
+                aria-labelledby="core-cert-input-label"
               />
               <Button variant="outline" size="sm" className="font-semibold" onClick={addCertification}>
                 <Plus className="size-3 mr-2" />
@@ -769,17 +912,19 @@ export default function Core() {
                         value={item.school}
                         onChange={(event) => updateEducationItem(idx, "school", event.target.value)}
                         onBlur={() => setEditingField(null)}
-                        autoFocus
+                        aria-label="School"
                       />
                       <Input
                         placeholder="Degree"
                         value={item.degree}
                         onChange={(event) => updateEducationItem(idx, "degree", event.target.value)}
+                        aria-label="Degree"
                       />
                       <Input
                         placeholder="Year"
                         value={item.year}
                         onChange={(event) => updateEducationItem(idx, "year", event.target.value)}
+                        aria-label="Year"
                       />
                       <div className="flex justify-between">
                         <Button variant="ghost" size="sm" onClick={() => removeEducationItem(idx)}>
@@ -791,12 +936,14 @@ export default function Core() {
                       </div>
                     </>
                   ) : (
-                    <div
-                      className="min-h-[64px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
+                    <button
+                      type="button"
+                      className="min-h-[64px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
                       onClick={() => setEditingField(key)}
+                      aria-label={`Edit education entry ${idx + 1}`}
                     >
                       {label || <span className="text-muted-foreground">Click to add education</span>}
-                    </div>
+                    </button>
                   )}
                 </div>
               );
@@ -851,7 +998,7 @@ export default function Core() {
                         onChange={(event) => updateExperienceItem(idx, event.target.value)}
                         className="min-h-[90px]"
                         onBlur={() => setEditingField(null)}
-                        autoFocus
+                        aria-label={`Experience highlight ${idx + 1}`}
                       />
                       <div className="flex justify-between">
                         <Button variant="ghost" size="sm" onClick={() => removeExperienceItem(idx)}>
@@ -863,12 +1010,14 @@ export default function Core() {
                       </div>
                     </>
                   ) : (
-                    <div
-                      className="min-h-[90px] rounded-md border border-border px-3 py-2 text-sm cursor-text hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
+                    <button
+                      type="button"
+                      className="min-h-[90px] w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-secondary/30 transition-colors whitespace-pre-wrap"
                       onClick={() => setEditingField(key)}
+                      aria-label={`Edit experience highlight ${idx + 1}`}
                     >
                       {item || <span className="text-muted-foreground">Click to add highlight</span>}
-                    </div>
+                    </button>
                   )}
                 </div>
               </div>

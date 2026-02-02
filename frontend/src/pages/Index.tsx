@@ -29,7 +29,7 @@ export default function Index() {
         {/* Header */}
         <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md px-10 py-6 border-b border-border flex justify-between items-center">
           <div className="flex items-center gap-8">
-            <nav className="flex gap-8" role="tablist" aria-label="Dashboard sections">
+            <div className="flex gap-8" role="tablist" aria-label="Dashboard sections">
               <button
                 type="button"
                 role="tab"
@@ -82,7 +82,7 @@ export default function Index() {
               >
                 Opportunities
               </button>
-            </nav>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <Button
