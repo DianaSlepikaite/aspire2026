@@ -3,54 +3,33 @@ import { RoleCard } from "@/components/cards/RoleCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mic, MessageSquare, FileUp, PlusCircle, Search, Bell, TrendingUp, TrendingDown, Zap } from "lucide-react";
+import { rolesData, rolesStats, rolesTabs } from "./rolesData";
 
-const stats = [
-  { label: "Total Project Roles", value: 42, change: "+2.4%", up: true },
-  { label: "Open Positions", value: 12, change: "+5.1%", up: true },
-  { label: "Filled (Last 30 days)", value: 30, change: "-1.2%", up: false },
-];
+interface AvatarProps {
+  src: string;
+  alt: string;
+  className?: string;
+}
 
-const roles = [
-  {
-    title: "Senior Fullstack Engineer",
-    project: "Neo-Banking Mobile App",
-    client: "CloudScale Systems",
-    status: "high-priority" as const,
-    icon: "code" as const,
-    applicants: [
-      { image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face" },
-      { image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop&crop=face" },
-      { image: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=50&h=50&fit=crop&crop=face" },
-      { image: "" },
-      { image: "" },
-      { image: "" },
-      { image: "" },
-    ],
-  },
-  {
-    title: "Lead Product Designer",
-    project: "Design System 2.0",
-    client: "MetaLogix",
-    status: "interviewing" as const,
-    icon: "design" as const,
-    applicants: [
-      { image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&h=50&fit=crop&crop=face" },
-      { image: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=50&h=50&fit=crop&crop=face" },
-      { image: "" },
-      { image: "" },
-    ],
-  },
-  {
-    title: "Data Architect",
-    project: "Big Data Migration",
-    client: "FinServ Global",
-    status: "pending" as const,
-    icon: "data" as const,
-    applicants: [],
-  },
-];
-
-const tabs = ["Client", "Project", "Roles", "Documents"];
+function Avatar({ src, alt, className = "" }: AvatarProps) {
+  if (!src) {
+    return (
+      <div
+        className={`size-9 rounded-full border border-border bg-secondary ${className}`}
+        role="img"
+        aria-label={alt}
+      />
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`size-9 rounded-full border border-border object-cover ${className}`}
+      loading="lazy"
+    />
+  );
+}
 
 export default function Roles() {
   return (
@@ -139,12 +118,18 @@ export default function Roles() {
             >
               Roles
             </NavLink>
-            <span className="text-muted-foreground text-sm font-medium cursor-pointer hover:text-foreground transition-colors">
+            <button
+              type="button"
+              className="text-muted-foreground text-sm font-medium hover:text-foreground transition-colors"
+            >
               Reports
-            </span>
-            <span className="text-muted-foreground text-sm font-medium cursor-pointer hover:text-foreground transition-colors">
+            </button>
+            <button
+              type="button"
+              className="text-muted-foreground text-sm font-medium hover:text-foreground transition-colors"
+            >
               Settings
-            </span>
+            </button>
           </nav>
 
           <div className="flex items-center gap-6">
@@ -165,11 +150,9 @@ export default function Roles() {
               >
                 <Bell className="size-5" />
               </Button>
-              <div
-                className="size-9 rounded-full bg-cover bg-center border border-border"
-                style={{ backgroundImage: "url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop&crop=face')" }}
-                role="img"
-                aria-label="User avatar"
+              <Avatar
+                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop&crop=face"
+                alt="User avatar"
               />
             </div>
           </div>
@@ -193,7 +176,7 @@ export default function Roles() {
 
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {stats.map((stat, idx) => (
+            {rolesStats.map((stat, idx) => (
               <div key={idx} className="flex flex-col gap-2 rounded-xl p-6 border border-border bg-card">
                 <p className="text-muted-foreground text-sm font-medium">{stat.label}</p>
                 <div className="flex items-end justify-between">
@@ -210,7 +193,7 @@ export default function Roles() {
           {/* Tabs Section */}
           <div className="mb-8">
             <div className="flex border-b border-border gap-10">
-              {tabs.map((tab) => (
+              {rolesTabs.map((tab) => (
                 <button
                   key={tab}
                   className={`flex flex-col items-center justify-center pb-4 pt-2 transition-all ${
@@ -227,7 +210,7 @@ export default function Roles() {
 
           {/* Roles Grid */}
           <div className="grid grid-cols-1 gap-4">
-            {roles.map((role, idx) => (
+            {rolesData.map((role, idx) => (
               <RoleCard key={idx} {...role} />
             ))}
           </div>
