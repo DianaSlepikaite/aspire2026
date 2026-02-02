@@ -192,7 +192,7 @@ export default function BusinessRoles({ clientNeedId, agentRuns }: BusinessRoles
                           </div>
                           <p className="text-[10px] font-semibold text-muted-foreground mt-1 uppercase">Match</p>
                         </div>
-                        <Button variant="outline" size="icon">
+                        <Button variant="outline" size="icon" aria-label={`View ${match.employee_name}`}>
                           <Eye className="size-4" />
                         </Button>
                         <Button className="font-semibold">Staff Role</Button>

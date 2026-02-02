@@ -147,15 +147,23 @@ export default function Roles() {
               <Input
                 className="w-64 bg-secondary border-none pl-10"
                 placeholder="Search talent or roles..."
+                aria-label="Search talent or roles"
               />
             </div>
             <div className="flex items-center gap-3 border-l border-border pl-6">
-              <Button variant="ghost" size="icon" className="bg-secondary text-foreground hover:bg-secondary/80">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="bg-secondary text-foreground hover:bg-secondary/80"
+                aria-label="Notifications"
+              >
                 <Bell className="size-5" />
               </Button>
               <div
                 className="size-9 rounded-full bg-cover bg-center border border-border"
                 style={{ backgroundImage: "url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop&crop=face')" }}
+                role="img"
+                aria-label="User avatar"
               />
             </div>
           </div>

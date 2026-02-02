@@ -35,6 +35,7 @@ export default function Mode() {
             variant="ghost"
             size="icon"
             className="bg-secondary text-muted-foreground hover:text-foreground"
+            aria-label="Notifications"
           >
             <Bell className="size-5" />
           </Button>
@@ -74,9 +75,9 @@ export default function Mode() {
               <div className="absolute inset-0 rounded-full bg-primary/10 blur-xl scale-150 opacity-70" />
               <div className="absolute inset-0 rounded-full border border-primary/20 scale-125 animate-pulse" />
 
-              <button className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-transform">
+              <div className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
                 <Briefcase className="size-10" />
-              </button>
+              </div>
             </div>
             <span className="text-xs font-bold uppercase tracking-tighter text-muted-foreground/60">
               Click to enter Career
@@ -96,9 +97,9 @@ export default function Mode() {
               <div className="absolute inset-0 rounded-full bg-primary/10 blur-xl scale-150 opacity-70" />
               <div className="absolute inset-0 rounded-full border border-primary/20 scale-125 animate-pulse" />
 
-              <button className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-transform">
+              <div className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
                 <Users className="size-10" />
-              </button>
+              </div>
 
               {/* matching indicator dots */}
               <div className="absolute left-2 top-1/2 -translate-y-1/2 size-3 rounded-full bg-primary animate-pulse" />

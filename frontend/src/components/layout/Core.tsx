@@ -985,6 +985,7 @@ export default function Core() {
                         size="icon"
                         className="text-muted-foreground hover:text-primary"
                         onClick={() => handleFileAction(fileItem)}
+                        aria-label={`View ${fileItem.file_name ?? "document"}`}
                       >
                         <Eye className="size-4" />
                       </Button>
@@ -1006,6 +1007,7 @@ export default function Core() {
                               // noop
                             });
                         }}
+                        aria-label={`Delete ${fileItem.file_name ?? "document"}`}
                       >
                         <Trash2 className="size-4" />
                       </Button>

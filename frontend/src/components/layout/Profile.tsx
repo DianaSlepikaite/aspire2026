@@ -166,6 +166,7 @@ export default function Profile() {
                       size="icon"
                       className="text-muted-foreground hover:text-primary"
                       onClick={() => handleFileAction(doc)}
+                      aria-label={`View ${doc.file_name ?? "document"}`}
                     >
                       <Eye className="size-4" />
                     </Button>
@@ -187,6 +188,7 @@ export default function Profile() {
                             // noop
                           });
                       }}
+                      aria-label={`Delete ${doc.file_name ?? "document"}`}
                     >
                       <Trash2 className="size-4" />
                     </Button>

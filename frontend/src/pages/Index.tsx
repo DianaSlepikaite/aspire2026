@@ -33,6 +33,8 @@ export default function Index() {
               <button
                 type="button"
                 role="tab"
+                id="tab-profile"
+                aria-controls="tabpanel-profile"
                 aria-selected={activeTab === "profile"}
                 className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
                   activeTab === "profile" ? "text-primary font-bold border-b-2 border-primary" : ""
@@ -44,6 +46,8 @@ export default function Index() {
               <button
                 type="button"
                 role="tab"
+                id="tab-core"
+                aria-controls="tabpanel-core"
                 aria-selected={activeTab === "core"}
                 className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
                   activeTab === "core" ? "text-primary font-bold border-b-2 border-primary" : ""
@@ -55,6 +59,8 @@ export default function Index() {
               <button
                 type="button"
                 role="tab"
+                id="tab-growth"
+                aria-controls="tabpanel-growth"
                 aria-selected={activeTab === "growth"}
                 className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
                   activeTab === "growth" ? "text-primary font-bold border-b-2 border-primary" : ""
@@ -66,6 +72,8 @@ export default function Index() {
               <button
                 type="button"
                 role="tab"
+                id="tab-opportunities"
+                aria-controls="tabpanel-opportunities"
                 aria-selected={activeTab === "opportunities"}
                 className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
                   activeTab === "opportunities" ? "text-primary font-bold border-b-2 border-primary" : ""
@@ -77,10 +85,20 @@ export default function Index() {
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Notifications"
+            >
               <Bell className="size-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Settings"
+            >
               <Settings className="size-5" />
             </Button>
           </div>
@@ -88,19 +106,32 @@ export default function Index() {
 
         <div className="p-10 max-w-6xl mx-auto space-y-12">
           {activeTab === "profile" && (
-            <Profile />
+            <section role="tabpanel" id="tabpanel-profile" aria-labelledby="tab-profile" tabIndex={0}>
+              <Profile />
+            </section>
           )}
 
           {activeTab === "core" && (
-            <Core />
+            <section role="tabpanel" id="tabpanel-core" aria-labelledby="tab-core" tabIndex={0}>
+              <Core />
+            </section>
           )}
 
           {activeTab === "growth" && (
-            <Growth />
+            <section role="tabpanel" id="tabpanel-growth" aria-labelledby="tab-growth" tabIndex={0}>
+              <Growth />
+            </section>
           )}
 
           {activeTab === "opportunities" && (
-            <Matches />
+            <section
+              role="tabpanel"
+              id="tabpanel-opportunities"
+              aria-labelledby="tab-opportunities"
+              tabIndex={0}
+            >
+              <Matches />
+            </section>
           )}
         </div>
         </main>

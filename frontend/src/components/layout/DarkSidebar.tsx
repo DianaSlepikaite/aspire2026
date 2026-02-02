@@ -594,6 +594,7 @@ export function DarkSidebar({
                 ? "Ask AI to analyze staffing gaps, prioritize roles, or draft a project request..."
                 : "Ask AI to analyze your recent project or update your CV..."
             }
+            aria-label={isBusiness ? "Business chat input" : "Career chat input"}
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
             onKeyDown={(event) => {
@@ -625,6 +626,8 @@ export function DarkSidebar({
                 className="text-muted-foreground hover:text-foreground"
                 onClick={aiState === "listening" ? handleStopListening : handleStartListening}
                 disabled={!recognitionRef.current}
+                aria-label={aiState === "listening" ? "Stop voice input" : "Start voice input"}
+                aria-pressed={aiState === "listening"}
               >
                 <Mic className="size-5" />
               </Button>
@@ -634,6 +637,7 @@ export function DarkSidebar({
                   size="icon"
                   className="text-muted-foreground hover:text-foreground"
                   onClick={() => setIntakeOpen(true)}
+                  aria-label="Upload client brief"
                 >
                   <FileUp className="size-5" />
                 </Button>
@@ -643,6 +647,7 @@ export function DarkSidebar({
                   size="icon"
                   className="text-muted-foreground hover:text-foreground"
                   onClick={() => careerFileInputRef.current?.click()}
+                  aria-label="Upload document"
                 >
                   <FileUp className="size-5" />
                 </Button>
@@ -670,17 +675,20 @@ export function DarkSidebar({
                 placeholder="Client name (optional)"
                 value={clientName}
                 onChange={(event) => setClientName(event.target.value)}
+                aria-label="Client name"
               />
               <Input
                 placeholder="Client email (optional)"
                 value={clientEmail}
                 onChange={(event) => setClientEmail(event.target.value)}
+                aria-label="Client email"
               />
               <Textarea
                 className="min-h-[140px]"
                 placeholder="Paste the project brief or key requirements..."
                 value={briefText}
                 onChange={(event) => setBriefText(event.target.value)}
+                aria-label="Project brief"
               />
               <Input
                 type="file"
@@ -692,6 +700,7 @@ export function DarkSidebar({
                     setHasConversationStarted(true);
                   }
                 }}
+                aria-label="Upload brief file"
               />
               {intakeFile && (
                 <p className="text-xs text-muted-foreground">Selected file: {intakeFile.name}</p>
@@ -713,15 +722,23 @@ export function DarkSidebar({
 
       {/* User Profile */}
       <div className="mt-auto pt-8 flex items-center gap-4 border-t border-border">
-        <div 
+        <div
           className="size-10 rounded-full bg-cover bg-center border border-border"
           style={{ backgroundImage: `url('${userImage}')` }}
+          role="img"
+          aria-label={`${userName} avatar`}
         />
         <div className="flex-1 min-w-0">
           <p className="text-foreground text-sm font-semibold truncate">{userName}</p>
           <p className="text-muted-foreground text-xs truncate">{userRole}</p>
         </div>
-        <Button onClick={() => navigate("/", { replace: true })} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button
+          onClick={() => navigate("/", { replace: true })}
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label="Return to portal selection"
+        >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-5">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
             <polyline points="16 17 21 12 16 7" />

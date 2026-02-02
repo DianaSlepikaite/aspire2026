@@ -17,7 +17,12 @@ export default function Onboarding() {
           <h2 className="text-lg font-bold leading-tight tracking-tight hidden sm:block">TalentMatch</h2>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="bg-secondary text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-secondary text-muted-foreground hover:text-foreground"
+            aria-label="Notifications"
+          >
             <Bell className="size-5" />
           </Button>
           <div className="h-8 w-[1px] bg-border mx-1" />
@@ -66,7 +71,11 @@ export default function Onboarding() {
             </div>
             <div className="relative flex items-center justify-center mb-8">
               <div className="absolute inset-0 bg-primary/20 rounded-full scale-125 animate-ping opacity-20" />
-              <button className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-transform">
+              <button
+                type="button"
+                className="relative flex items-center justify-center size-24 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-transform"
+                aria-label="Start voice recording"
+              >
                 <Mic className="size-10" />
               </button>
             </div>
@@ -89,6 +98,7 @@ export default function Onboarding() {
             <Textarea
               className="flex-1 w-full bg-secondary/50 border-border min-h-[160px] resize-none"
               placeholder="E.g. I am a Senior Product Designer with 8 years of experience in FinTech..."
+              aria-label="Bio"
             />
             <Button className="mt-4 w-full font-bold" variant="secondary">
               Submit Bio
@@ -102,14 +112,14 @@ export default function Onboarding() {
               <h3 className="font-bold text-xl mb-2">Upload</h3>
               <p className="text-sm text-muted-foreground mb-8">Import data from your CV/Resume</p>
             </div>
-            <div className="w-full flex-1 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-6 bg-secondary/30 hover:bg-primary/5 cursor-pointer transition-colors group">
+            <div className="w-full flex-1 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-6 bg-secondary/30 transition-colors group">
               <div className="size-16 bg-card border border-border rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:border-primary transition-colors">
                 <Upload className="size-8 text-primary" />
               </div>
               <p className="text-sm font-semibold mb-1">Drop your file here</p>
               <p className="text-xs text-muted-foreground/60">PDF, DOCX up to 10MB</p>
             </div>
-            <Button variant="outline" className="mt-6 w-full font-medium">
+            <Button variant="outline" className="mt-6 w-full font-medium" aria-label="Browse files">
               <Paperclip className="size-4 mr-2" />
               Browse Files
             </Button>

@@ -96,6 +96,8 @@ export default function BusinessPortal() {
               <button
                 type="button"
                 role="tab"
+                id="tab-staffing"
+                aria-controls="tabpanel-staffing"
                 aria-selected={activeTab === "staffing"}
                 className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
                   activeTab === "staffing" ? "text-primary font-bold border-b-2 border-primary" : ""
@@ -107,6 +109,8 @@ export default function BusinessPortal() {
               <button
                 type="button"
                 role="tab"
+                id="tab-roles"
+                aria-controls="tabpanel-roles"
                 aria-selected={activeTab === "roles"}
                 className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
                   activeTab === "roles" ? "text-primary font-bold border-b-2 border-primary" : ""
@@ -118,6 +122,8 @@ export default function BusinessPortal() {
               <button
                 type="button"
                 role="tab"
+                id="tab-reports"
+                aria-controls="tabpanel-reports"
                 aria-selected={activeTab === "reports"}
                 className={`text-muted-foreground font-medium pb-1 transition-colors hover:text-foreground ${
                   activeTab === "reports" ? "text-primary font-bold border-b-2 border-primary" : ""
@@ -128,10 +134,20 @@ export default function BusinessPortal() {
               </button>
             </nav>
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Notifications"
+              >
                 <Bell className="size-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Settings"
+              >
                 <Settings className="size-5" />
               </Button>
             </div>
@@ -139,20 +155,28 @@ export default function BusinessPortal() {
 
           <div className="p-10 max-w-6xl mx-auto space-y-12">
             {activeTab === "staffing" && (
-              <BusinessStaffing
-              selectedClientNeedId={selectedClientNeedId}
-              onSelectNeed={(id) => {
-                setSelectedClientNeedId(id);
-                window.localStorage.setItem(STORAGE_KEYS.selectedClientNeedId, id);
-              }}
-                onViewRoles={() => setActiveTab("roles")}
-                agentRuns={agentRuns}
-              />
+              <section role="tabpanel" id="tabpanel-staffing" aria-labelledby="tab-staffing" tabIndex={0}>
+                <BusinessStaffing
+                selectedClientNeedId={selectedClientNeedId}
+                onSelectNeed={(id) => {
+                  setSelectedClientNeedId(id);
+                  window.localStorage.setItem(STORAGE_KEYS.selectedClientNeedId, id);
+                }}
+                  onViewRoles={() => setActiveTab("roles")}
+                  agentRuns={agentRuns}
+                />
+              </section>
             )}
             {activeTab === "roles" && (
-              <BusinessRoles clientNeedId={selectedClientNeedId} agentRuns={agentRuns} />
+              <section role="tabpanel" id="tabpanel-roles" aria-labelledby="tab-roles" tabIndex={0}>
+                <BusinessRoles clientNeedId={selectedClientNeedId} agentRuns={agentRuns} />
+              </section>
             )}
-            {activeTab === "reports" && <BusinessReports agentRuns={agentRuns} />}
+            {activeTab === "reports" && (
+              <section role="tabpanel" id="tabpanel-reports" aria-labelledby="tab-reports" tabIndex={0}>
+                <BusinessReports agentRuns={agentRuns} />
+              </section>
+            )}
           </div>
         </main>
         </div>
